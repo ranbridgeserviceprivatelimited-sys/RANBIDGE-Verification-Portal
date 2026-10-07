@@ -1,41 +1,13 @@
 import React, { useState } from 'react';
-import { Award, Download, Eye, Plus, ShieldCheck, FileText, Image as ImageIcon, FileSpreadsheet, Clock, X } from 'lucide-react';
+import { Award, Download, Eye, Plus, ShieldCheck, FileText, Image as ImageIcon, FileSpreadsheet, Clock, X, CheckCircle2 } from 'lucide-react';
 import logoImg from '../../assets/logo.jpg';
 import CertificateGenerator from './CertificateGenerator';
+import CertificateDownloadBox from './CertificateDownloadBox';
 
 export default function VerificationCard({ record, certificates = [], onNewRegistration, showToast }) {
   const [selectedPreview, setSelectedPreview] = useState(null);
 
   if (!record) return null;
-
-  // Filter dumped certificates matching this record by rollNumber, fullName, or workshopName
-  const matchedCerts = certificates.filter(cert => {
-    const certRoll = (cert.rollNumber || '').toLowerCase().trim();
-    const certName = (cert.studentName || cert.fullName || '').toLowerCase().trim();
-    const certFile = (cert.fileName || '').toLowerCase().trim();
-    const certWorkshop = (cert.workshopName || cert.eventName || '').toLowerCase().trim();
-
-    const queryRoll = (record.rollNumber || '').toLowerCase().trim();
-    const queryName = (record.fullName || '').toLowerCase().trim();
-    const queryWorkshop = (record.workshopName || '').toLowerCase().trim();
-
-    if (!queryRoll && !queryName && !queryWorkshop) return false;
-
-    const isRollMatch = queryRoll && ((certRoll && certRoll.includes(queryRoll)) || certFile.includes(queryRoll));
-    const isNameMatch = queryName && ((certName && (certName.includes(queryName) || queryName.includes(certName))) || certFile.includes(queryName));
-    const isWorkshopMatch = queryWorkshop && ((certWorkshop && certWorkshop.includes(queryWorkshop)) || certFile.includes(queryWorkshop));
-
-    return isRollMatch || isNameMatch || isWorkshopMatch;
-  });
-
-  const handleDownload = (cert) => {
-    const link = document.createElement('a');
-    link.href = cert.fileData;
-    link.download = cert.fileName || `${record.rollNumber || 'RANBIDGE_Certificate'}.${cert.fileType || 'pdf'}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   return (
     <div className="submission-card">
@@ -54,8 +26,34 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
           gap: '0.35rem',
           border: '1px solid #bbf7d0'
         }}>
-          <ShieldCheck size={15} /> VERIFIED & PUBLISHED
+          <ShieldCheck size={15} /> REGISTRATION VERIFIED & PUBLISHED
         </span>
+      </div>
+
+      {/* Instant Download Alert Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+        border: '1.5px solid #86efac',
+        borderRadius: 'var(--radius-md)',
+        padding: '1rem 1.25rem',
+        marginBottom: '1.5rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.75rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <CheckCircle2 size={24} color="#16a34a" />
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#14532d' }}>
+              Registration Verified & Submitted!
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.1rem' }}>
+              Official RANBIDGE Verification Credential generated below. You can download or print your certificate now.
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Participant Summary Ribbon */}
@@ -94,84 +92,12 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
       </div>
 
       {/* DUMPED CERTIFICATES DISPLAY SECTION (IF ADMIN DUMPED FILES) */}
-      {matchedCerts.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px dashed var(--border-color)' }}>
-          <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Award size={20} color="var(--success)" />
-            Additional Dumped Certificate Documents ({matchedCerts.length})
-          </h4>
-
-          {matchedCerts.map((cert, index) => {
-            const isImage = cert.fileType === 'image' || /\.(jpg|jpeg|png|gif|webp)$/i.test(cert.fileName || '');
-            const isPdf = cert.fileType === 'pdf' || /\.pdf$/i.test(cert.fileName || '');
-
-            return (
-              <div key={cert.id || index} style={{
-                background: '#ffffff',
-                border: '1.5px solid var(--border-color)',
-                borderRadius: 'var(--radius-lg)',
-                overflow: 'hidden',
-                boxShadow: 'var(--shadow-md)'
-              }}>
-                <div 
-                  onClick={() => setSelectedPreview(cert)}
-                  style={{
-                    height: '240px',
-                    background: '#f8fafc',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderBottom: '1px solid var(--border-color)',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}
-                  title="Click to expand full screen preview"
-                >
-                  {isImage && cert.fileData ? (
-                    <img src={cert.fileData} alt={cert.fileName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : isPdf && cert.fileData ? (
-                    <iframe src={cert.fileData} title="PDF Certificate" style={{ width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }} />
-                  ) : (
-                    <div style={{ textAlign: 'center', color: 'var(--primary)' }}>
-                      <Award size={56} />
-                      <div style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.4rem' }}>{cert.fileName}</div>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div>
-                    <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                      {cert.fileName}
-                    </h4>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                      Issued to <strong>{cert.studentName || record.fullName}</strong> &bull; {record.workshopName}
-                    </p>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => setSelectedPreview(cert)}
-                      style={{ padding: '0.7rem 1.25rem', fontSize: '0.88rem' }}
-                    >
-                      <Eye size={16} /> Preview
-                    </button>
-                    <button
-                      className="btn-primary"
-                      onClick={() => handleDownload(cert)}
-                      style={{ padding: '0.7rem 1.5rem', fontSize: '0.88rem' }}
-                    >
-                      <Download size={16} /> Download Certificate
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <CertificateDownloadBox
+        certificates={certificates}
+        rollNumber={record.rollNumber}
+        fullName={record.fullName}
+        workshopName={record.workshopName}
+      />
 
       {/* Action Footer */}
       <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

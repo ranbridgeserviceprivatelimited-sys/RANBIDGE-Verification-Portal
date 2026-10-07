@@ -27,7 +27,8 @@ export default function CertificateGenerator({ record, showActions = true, onDow
     canvas.height = height;
 
     const bgImage = new Image();
-    bgImage.src = '/assets/reference_certificate.png';
+    // Try primary public path first, fallback if needed
+    bgImage.src = '/reference_certificate.png';
     bgImage.crossOrigin = 'anonymous';
 
     bgImage.onload = () => {
@@ -39,17 +40,17 @@ export default function CertificateGenerator({ record, showActions = true, onDow
 
       // 2. White Patch & Overlay Student Name
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(260, 455, 894, 75);
+      ctx.fillRect(240, 455, 934, 75);
 
       ctx.textAlign = 'center';
       ctx.font = 'bold italic 44px "Georgia", serif';
-      ctx.fillStyle = '#0f172a';
+      ctx.fillStyle = '#0c2340';
       ctx.fillText(recipientName, centerX, 502);
 
       // Name underline & Diamond symbol (◇)
       const nameTextWidth = ctx.measureText(recipientName).width;
       const underlineWidth = Math.max(380, nameTextWidth + 50);
-      ctx.strokeStyle = '#2563eb';
+      ctx.strokeStyle = '#1d4ed8';
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.moveTo(centerX - underlineWidth / 2, 522);
@@ -59,7 +60,7 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.stroke();
 
       // Center Diamond symbol
-      ctx.fillStyle = '#2563eb';
+      ctx.fillStyle = '#1d4ed8';
       ctx.beginPath();
       ctx.moveTo(centerX, 516);
       ctx.lineTo(centerX + 6, 522);
@@ -70,68 +71,101 @@ export default function CertificateGenerator({ record, showActions = true, onDow
 
       // 3. White Patch & Overlay Workshop Duration & Title
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(160, 550, 1094, 95);
+      ctx.fillRect(140, 545, 1134, 98);
 
-      // Dynamically measure line width for perfect centering & clean spacing
+      // Line 1: "for successfully participating in the 3-Day Workshop on"
       const prefixText = 'for successfully participating in the ';
-      const durationFullText = `${durationText} Workshop on`;
+      const durationPart = `${durationText} `;
+      const suffixText = 'Workshop on';
 
       ctx.font = '500 22px "Georgia", serif';
       const prefixWidth = ctx.measureText(prefixText).width;
 
       ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
-      const durationWidth = ctx.measureText(durationFullText).width;
+      const durationWidth = ctx.measureText(durationPart).width;
 
-      const totalLineWidth = prefixWidth + durationWidth;
+      ctx.font = '500 22px "Georgia", serif';
+      const suffixWidth = ctx.measureText(suffixText).width;
+
+      const totalLineWidth = prefixWidth + durationWidth + suffixWidth;
       const startX = centerX - (totalLineWidth / 2);
 
-      // Draw Prefix Text ("for successfully participating in the ")
+      // Draw Prefix ("for successfully participating in the ")
       ctx.textAlign = 'left';
       ctx.font = '500 22px "Georgia", serif';
-      ctx.fillStyle = '#334155';
+      ctx.fillStyle = '#1b365d';
       ctx.fillText(prefixText, startX, 576);
 
-      // Draw Duration Text ("3-Day Workshop on") with guaranteed space
+      // Draw Duration ("3-Day ")
       ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
-      ctx.fillStyle = '#1e40af';
-      ctx.fillText(durationFullText, startX + prefixWidth, 576);
+      ctx.fillStyle = '#1d4ed8';
+      ctx.fillText(durationPart, startX + prefixWidth, 576);
 
-      // Main Workshop Title (Bold Uppercase +2 font size: 34px)
+      // Draw Suffix ("Workshop on")
+      ctx.font = '500 22px "Georgia", serif';
+      ctx.fillStyle = '#1b365d';
+      ctx.fillText(suffixText, startX + prefixWidth + durationWidth, 576);
+
+      // Line 2: Main Workshop Title (Bold Uppercase Dark Blue)
       ctx.textAlign = 'center';
-      ctx.font = '900 34px "Plus Jakarta Sans", sans-serif';
-      ctx.fillStyle = '#0f172a';
+      ctx.font = '900 34px "Plus Jakarta Sans", "Inter", sans-serif';
+      ctx.fillStyle = '#0c2340';
       ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
 
-      // 4. White Patch & Overlay Date & College Name (+2 font size: 19px)
+      // 4. White Patch & Overlay Date, College Name & Organized By
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(180, 652, 1054, 58);
+      ctx.fillRect(160, 650, 1094, 82);
 
-      // Date (Calendar Icon)
+      // Line 3: Date (Calendar Icon) & College Name (Location Pin Icon)
       ctx.font = '600 19px "Georgia", serif';
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = '#1b365d';
       ctx.textAlign = 'right';
-      ctx.fillText(`📅  ${workshopDate}`, centerX - 25, 690);
+      ctx.fillText(`📅  ${workshopDate}`, centerX - 25, 684);
 
-      // College Name with Location Pin Symbol 📍 on the left
       ctx.textAlign = 'left';
-      ctx.fillText(`📍  ${collegeName}`, centerX + 25, 690);
+      ctx.fillText(`📍  ${collegeName}`, centerX + 25, 684);
+
+      // Line 4: Organized by Ranbidge Solutions Private Limited
+      ctx.textAlign = 'center';
+      ctx.font = 'italic 500 18px "Georgia", serif';
+      ctx.fillStyle = '#1b365d';
+      ctx.fillText('Organized by Ranbidge Solutions Private Limited', centerX, 718);
     };
 
     bgImage.onerror = () => {
-      // Fallback white background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
+      // Fallback path
+      const bgImage2 = new Image();
+      bgImage2.src = '/assets/reference_certificate.png';
+      bgImage2.onload = () => {
+        setImgLoaded(true);
+        ctx.drawImage(bgImage2, 0, 0, width, height);
 
-      const centerX = width / 2;
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 36px "Plus Jakarta Sans", sans-serif';
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText('RANBIDGE SOLUTIONS PRIVATE LIMITED', centerX, 150);
+        const centerX = width / 2;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(240, 455, 934, 75);
+        ctx.textAlign = 'center';
+        ctx.font = 'bold italic 44px "Georgia", serif';
+        ctx.fillStyle = '#0c2340';
+        ctx.fillText(recipientName, centerX, 502);
 
-      ctx.font = 'bold italic 40px "Georgia", serif';
-      ctx.fillText(recipientName, centerX, 400);
-      ctx.font = '900 30px "Plus Jakarta Sans", sans-serif';
-      ctx.fillText(workshopTitle.toUpperCase(), centerX, 550);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(140, 545, 1134, 98);
+        ctx.font = '500 22px "Georgia", serif';
+        ctx.fillStyle = '#1b365d';
+        ctx.fillText(`for successfully participating in the ${durationText} Workshop on`, centerX, 576);
+
+        ctx.font = '900 34px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#0c2340';
+        ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(160, 650, 1094, 82);
+        ctx.font = '600 19px "Georgia", serif';
+        ctx.fillStyle = '#1b365d';
+        ctx.fillText(`📅 ${workshopDate}    📍 ${collegeName}`, centerX, 684);
+        ctx.font = 'italic 500 18px "Georgia", serif';
+        ctx.fillText('Organized by Ranbidge Solutions Private Limited', centerX, 718);
+      };
     };
   };
 
