@@ -119,6 +119,7 @@ export default function PublicSearch({ records, certificates = [], onNewRegistra
             certificates={certificates}
             rollNumber={searchedQueryStr}
             fullName={searchedQueryStr}
+            workshopName={searchedQueryStr}
           />
         </div>
       )}

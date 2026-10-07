@@ -16,7 +16,12 @@ import {
   Download, 
   FileText, 
   ChevronRight,
-  Filter
+  Filter,
+  UserCheck,
+  User,
+  GraduationCap,
+  CheckCircle2,
+  Calendar
 } from 'lucide-react';
 import CertificateDumpUpload from './CertificateDumpUpload';
 import CertificateGenerator from './CertificateGenerator';
@@ -40,6 +45,13 @@ export default function AdminPortalModal({
   const [isCollegesModalOpen, setIsCollegesModalOpen] = useState(false);
   const [selectedCollegeName, setSelectedCollegeName] = useState(null);
   const [collegeSearchQuery, setCollegeSearchQuery] = useState('');
+
+  // Users Directory Inspector Modal State
+  const [isUsersDirectoryOpen, setIsUsersDirectoryOpen] = useState(false);
+  const [userDirSearchQuery, setUserDirSearchQuery] = useState('');
+  const [selectedCollegeFilter, setSelectedCollegeFilter] = useState('');
+  const [selectedWorkshopFilter, setSelectedWorkshopFilter] = useState('');
+
   const [selectedPreviewCert, setSelectedPreviewCert] = useState(null);
   const [selectedGeneratedCertRecord, setSelectedGeneratedCertRecord] = useState(null);
 
@@ -53,6 +65,8 @@ export default function AdminPortalModal({
           setSelectedGeneratedCertRecord(null);
         } else if (selectedPreviewCert) {
           setSelectedPreviewCert(null);
+        } else if (isUsersDirectoryOpen) {
+          setIsUsersDirectoryOpen(false);
         } else if (selectedCollegeName) {
           setSelectedCollegeName(null);
         } else if (isCollegesModalOpen) {
@@ -65,7 +79,7 @@ export default function AdminPortalModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isCollegesModalOpen, selectedCollegeName, selectedPreviewCert, selectedGeneratedCertRecord, onClose]);
+  }, [isOpen, isCollegesModalOpen, selectedCollegeName, selectedPreviewCert, selectedGeneratedCertRecord, isUsersDirectoryOpen, onClose]);
 
   // College breakdown analysis from both records and dumped certificates
   const collegeBreakdown = useMemo(() => {
@@ -94,7 +108,6 @@ export default function AdminPortalModal({
     certificates.forEach(cert => {
       let matchedCollege = cert.college ? cert.college.trim() : null;
 
-      // Try matching by roll number
       if (!matchedCollege && cert.rollNumber) {
         const found = records.find(r => r.rollNumber && r.rollNumber.trim().toUpperCase() === cert.rollNumber.trim().toUpperCase());
         if (found && found.college) {
@@ -102,7 +115,6 @@ export default function AdminPortalModal({
         }
       }
 
-      // Try matching by student name
       if (!matchedCollege && cert.studentName) {
         const found = records.find(r => r.fullName && r.fullName.trim().toLowerCase() === cert.studentName.trim().toLowerCase());
         if (found && found.college) {
@@ -121,7 +133,6 @@ export default function AdminPortalModal({
 
   const stats = useMemo(() => {
     const total = records.length;
-    // Count unique colleges represented
     const validColleges = collegeBreakdown.filter(c => c.name !== 'Unspecified College' || c.records.length > 0 || c.certificates.length > 0);
     const collegesCount = validColleges.length;
     const certsCount = certificates.length;
@@ -140,6 +151,35 @@ export default function AdminPortalModal({
       (r.id && r.id.toLowerCase().includes(q))
     );
   }, [records, searchQuery]);
+
+  // Filtered Users Directory List
+  const filteredUsersDirectory = useMemo(() => {
+    return records.filter(user => {
+      const q = userDirSearchQuery.toLowerCase().trim();
+      const matchesSearch = !q || (
+        (user.fullName && user.fullName.toLowerCase().includes(q)) ||
+        (user.rollNumber && user.rollNumber.toLowerCase().includes(q)) ||
+        (user.college && user.college.toLowerCase().includes(q)) ||
+        (user.department && user.department.toLowerCase().includes(q)) ||
+        (user.workshopName && user.workshopName.toLowerCase().includes(q)) ||
+        (user.id && user.id.toLowerCase().includes(q))
+      );
+
+      const matchesCollege = !selectedCollegeFilter || user.college === selectedCollegeFilter;
+      const matchesWorkshop = !selectedWorkshopFilter || user.workshopName === selectedWorkshopFilter;
+
+      return matchesSearch && matchesCollege && matchesWorkshop;
+    });
+  }, [records, userDirSearchQuery, selectedCollegeFilter, selectedWorkshopFilter]);
+
+  // Unique College and Workshop lists for dropdown filters
+  const uniqueColleges = useMemo(() => {
+    return Array.from(new Set(records.map(r => r.college).filter(Boolean))).sort();
+  }, [records]);
+
+  const uniqueWorkshops = useMemo(() => {
+    return Array.from(new Set(records.map(r => r.workshopName).filter(Boolean))).sort();
+  }, [records]);
 
   // Filtered list of colleges for the Colleges Grid Modal
   const filteredColleges = useMemo(() => {
@@ -210,7 +250,7 @@ export default function AdminPortalModal({
                 <Shield size={14} /> Secret Admin Portal
               </div>
               <h2>RANBIDGE Verification Dashboard</h2>
-              <p>Manage registrations, inspect records, and dump certificate files for user downloads.</p>
+              <p>Manage registrations, inspect user profiles, and dump certificate files for user downloads.</p>
             </div>
             <button className="btn-icon-close" onClick={onClose} title="Close Admin Portal (Esc)">
               <X size={20} />
@@ -219,13 +259,22 @@ export default function AdminPortalModal({
 
           {/* Stats Grid */}
           <div className="admin-stats-grid">
-            <div className="admin-stat-card">
+            <div 
+              className="admin-stat-card clickable" 
+              onClick={() => setIsUsersDirectoryOpen(true)}
+              title="Click to check all user registration profiles stored in Firebase"
+            >
               <div className="stat-icon primary">
                 <Users />
               </div>
-              <div>
-                <div className="stat-value">{stats.total}</div>
-                <div className="stat-label">Total Registrations</div>
+              <div style={{ flex: 1 }}>
+                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{stats.total}</span>
+                  <span style={{ fontSize: '0.72rem', background: '#dbeafe', color: '#1d4ed8', padding: '0.15rem 0.55rem', borderRadius: '50px', fontWeight: 800 }}>
+                    Check Users &rarr;
+                  </span>
+                </div>
+                <div className="stat-label">Total Registered Users</div>
               </div>
             </div>
 
@@ -293,6 +342,14 @@ export default function AdminPortalModal({
                   />
                 </div>
                 <div className="admin-actions">
+                  <button 
+                    className="btn-primary btn-sm" 
+                    onClick={() => setIsUsersDirectoryOpen(true)}
+                    title="Check all registered users data stored in Firebase"
+                    style={{ background: '#0284c7', borderColor: '#0284c7' }}
+                  >
+                    <UserCheck size={15} /> Check Users Data ({records.length})
+                  </button>
                   <button className="btn-secondary btn-sm" onClick={onLoadSampleData} title="Load Demo Records">
                     <Database size={15} /> Load Demo Data
                   </button>
@@ -382,6 +439,217 @@ export default function AdminPortalModal({
 
         </div>
       </div>
+
+      {/* CHECK USERS DATA DIRECTORY MODAL */}
+      {isUsersDirectoryOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1150 }} onClick={() => setIsUsersDirectoryOpen(false)}>
+          <div 
+            className="admin-modal-container" 
+            style={{ maxWidth: '1150px', maxHeight: '90vh' }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="admin-header">
+              <div className="admin-header-title">
+                <div className="admin-badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                  <UserCheck size={14} /> Firebase Live Registered Users Database
+                </div>
+                <h2>
+                  Registered Users Directory ({filteredUsersDirectory.length} Students)
+                </h2>
+                <p>
+                  Inspect student registration profiles, verify roll numbers, and view generated certificates stored in Firebase.
+                </p>
+              </div>
+              <button 
+                className="btn-icon-close" 
+                onClick={() => setIsUsersDirectoryOpen(false)} 
+                title="Close Users Directory (Esc)"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Toolbar Filters */}
+            <div className="admin-toolbar" style={{ flexWrap: 'wrap', gap: '1rem' }}>
+              <div className="admin-search-wrapper" style={{ minWidth: '280px', flex: 1 }}>
+                <Search className="search-icon" />
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  placeholder="Search student name, roll number, college, department, workshop..."
+                  value={userDirSearchQuery}
+                  onChange={(e) => setUserDirSearchQuery(e.target.value)}
+                />
+              </div>
+
+              {/* College Filter Dropdown */}
+              <select
+                className="admin-search-input"
+                style={{ width: 'auto', minWidth: '180px', cursor: 'pointer' }}
+                value={selectedCollegeFilter}
+                onChange={(e) => setSelectedCollegeFilter(e.target.value)}
+              >
+                <option value="">All Colleges ({uniqueColleges.length})</option>
+                {uniqueColleges.map((col, i) => (
+                  <option key={i} value={col}>{col}</option>
+                ))}
+              </select>
+
+              {/* Workshop Filter Dropdown */}
+              <select
+                className="admin-search-input"
+                style={{ width: 'auto', minWidth: '180px', cursor: 'pointer' }}
+                value={selectedWorkshopFilter}
+                onChange={(e) => setSelectedWorkshopFilter(e.target.value)}
+              >
+                <option value="">All Workshops ({uniqueWorkshops.length})</option>
+                {uniqueWorkshops.map((w, i) => (
+                  <option key={i} value={w}>{w}</option>
+                ))}
+              </select>
+
+              {(selectedCollegeFilter || selectedWorkshopFilter || userDirSearchQuery) && (
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => {
+                    setUserDirSearchQuery('');
+                    setSelectedCollegeFilter('');
+                    setSelectedWorkshopFilter('');
+                  }}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            {/* USERS DIRECTORY GRID CARDS VIEW */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {filteredUsersDirectory.length > 0 ? (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))',
+                  gap: '1.25rem',
+                  paddingRight: '4px'
+                }}>
+                  {filteredUsersDirectory.map((user, idx) => (
+                    <div
+                      key={user.id || idx}
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid var(--border-color)',
+                        borderRadius: 'var(--radius-lg)',
+                        padding: '1.25rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: 'var(--shadow-sm)',
+                        transition: 'var(--transition)'
+                      }}
+                      className="college-card"
+                    >
+                      <div>
+                        {/* Header Profile Ribbon */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '50%',
+                              background: 'var(--primary-light)',
+                              color: 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 800,
+                              fontSize: '1.1rem'
+                            }}>
+                              <User size={22} />
+                            </div>
+                            <div>
+                              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: '1.2' }}>
+                                {user.fullName}
+                              </h3>
+                              <code style={{ fontSize: '0.75rem', background: '#f1f5f9', color: 'var(--primary)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                                {user.id}
+                              </code>
+                            </div>
+                          </div>
+
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            background: '#dcfce7',
+                            color: '#15803d',
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '50px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.2rem'
+                          }}>
+                            <CheckCircle2 size={12} /> Verified
+                          </span>
+                        </div>
+
+                        {/* Details List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-main)', marginTop: '0.85rem', background: 'var(--bg-secondary)', padding: '0.85rem', borderRadius: 'var(--radius-md)' }}>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Roll Number: </span>
+                            <strong style={{ color: 'var(--primary)' }}>{user.rollNumber}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>College: </span>
+                            <strong>{user.college}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Department: </span>
+                            <span>{user.department} ({user.passoutYear})</span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Workshop: </span>
+                            <strong style={{ color: 'var(--text-main)' }}>{user.workshopName}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Date: </span>
+                            <span>{user.workshopDate || 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Action Footer */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                        <button
+                          className="btn-primary btn-sm"
+                          onClick={() => setSelectedGeneratedCertRecord(user)}
+                          style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
+                        >
+                          <Award size={14} /> View Certificate
+                        </button>
+
+                        <button
+                          className="btn-action-del"
+                          onClick={() => onDeleteRecord(user.id)}
+                          title="Delete User Record"
+                        >
+                          <Trash size={15} />
+                        </button>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="admin-empty-state">
+                  <UserCheck size={48} />
+                  <h3>No Users Found</h3>
+                  <p>Try clearing filters or search query to view registered users.</p>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* COLLEGES & CERTIFICATES INTERACTIVE GRID MODAL */}
       {isCollegesModalOpen && (
