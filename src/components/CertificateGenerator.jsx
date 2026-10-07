@@ -112,16 +112,16 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.fillStyle = '#0c2340';
       ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
 
-      // 4. White Patch & Overlay Date & College Name
+      // 4. White Patch & Overlay Date & College Name (+2 font size: 21px)
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(160, 655, 1094, 55);
+      ctx.fillRect(160, 652, 1094, 60);
 
-      // Line 3: Date (Calendar Icon) & College Name (Location Pin Icon) - Perfectly Centered
+      // Line 3: Date (Calendar Icon) & College Name (Location Pin Icon) - Perfectly Centered (+2 size)
       const dateStr = `📅  ${workshopDate}`;
       const collegeStr = `📍  ${collegeName}`;
       const gapBetween = 45;
 
-      ctx.font = '600 19px "Georgia", serif';
+      ctx.font = '700 21px "Georgia", serif';
       const dateWidth = ctx.measureText(dateStr).width;
       const collegeWidth = ctx.measureText(collegeStr).width;
 
@@ -130,8 +130,8 @@ export default function CertificateGenerator({ record, showActions = true, onDow
 
       ctx.textAlign = 'left';
       ctx.fillStyle = '#1b365d';
-      ctx.fillText(dateStr, line3StartX, 688);
-      ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 688);
+      ctx.fillText(dateStr, line3StartX, 690);
+      ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 690);
     };
 
     bgImage.onerror = () => {
@@ -161,20 +161,20 @@ export default function CertificateGenerator({ record, showActions = true, onDow
         ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(160, 655, 1094, 55);
+        ctx.fillRect(160, 652, 1094, 60);
         
         const dateStr = `📅  ${workshopDate}`;
         const collegeStr = `📍  ${collegeName}`;
         const gapBetween = 45;
-        ctx.font = '600 19px "Georgia", serif';
+        ctx.font = '700 21px "Georgia", serif';
         const dateWidth = ctx.measureText(dateStr).width;
         const collegeWidth = ctx.measureText(collegeStr).width;
         const line3TotalWidth = dateWidth + gapBetween + collegeWidth;
         const line3StartX = centerX - (line3TotalWidth / 2);
         ctx.textAlign = 'left';
         ctx.fillStyle = '#1b365d';
-        ctx.fillText(dateStr, line3StartX, 688);
-        ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 688);
+        ctx.fillText(dateStr, line3StartX, 690);
+        ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 690);
       };
     };
   };
