@@ -1,6 +1,7 @@
 import React from 'react';
-import { Check, Printer, Plus, ShieldCheck } from 'lucide-react';
+import { Check, Printer, Plus, ShieldCheck, Award } from 'lucide-react';
 import CertificateDownloadBox from './CertificateDownloadBox';
+import CertificateGenerator from './CertificateGenerator';
 import logoImg from '../../assets/logo.jpg';
 
 export default function VerificationCard({ record, certificates = [], onNewRegistration, showToast }) {
@@ -104,7 +105,16 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
         </div>
       </div>
 
-      {/* Download Box for Certificates matching this Roll Number / Name */}
+      {/* Auto-Generated Official RANBIDGE Certificate */}
+      <div style={{ marginTop: '2rem' }}>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Award size={22} color="var(--primary)" />
+          Official RANBIDGE Certificate of Participation
+        </h3>
+        <CertificateGenerator record={record} showActions={true} />
+      </div>
+
+      {/* Download Box for Uploaded Certificates matching this Roll Number / Name */}
       <CertificateDownloadBox
         certificates={certificates}
         rollNumber={record.rollNumber}

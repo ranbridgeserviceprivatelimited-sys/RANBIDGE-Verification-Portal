@@ -19,6 +19,7 @@ import {
   Filter
 } from 'lucide-react';
 import CertificateDumpUpload from './CertificateDumpUpload';
+import CertificateGenerator from './CertificateGenerator';
 
 export default function AdminPortalModal({
   isOpen,
@@ -40,6 +41,7 @@ export default function AdminPortalModal({
   const [selectedCollegeName, setSelectedCollegeName] = useState(null);
   const [collegeSearchQuery, setCollegeSearchQuery] = useState('');
   const [selectedPreviewCert, setSelectedPreviewCert] = useState(null);
+  const [selectedGeneratedCertRecord, setSelectedGeneratedCertRecord] = useState(null);
 
   // Keyboard Escape key handler to close modals in priority order
   useEffect(() => {
@@ -47,7 +49,9 @@ export default function AdminPortalModal({
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (selectedPreviewCert) {
+        if (selectedGeneratedCertRecord) {
+          setSelectedGeneratedCertRecord(null);
+        } else if (selectedPreviewCert) {
           setSelectedPreviewCert(null);
         } else if (selectedCollegeName) {
           setSelectedCollegeName(null);
@@ -61,7 +65,7 @@ export default function AdminPortalModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isCollegesModalOpen, selectedCollegeName, selectedPreviewCert, onClose]);
+  }, [isOpen, isCollegesModalOpen, selectedCollegeName, selectedPreviewCert, selectedGeneratedCertRecord, onClose]);
 
   // College breakdown analysis from both records and dumped certificates
   const collegeBreakdown = useMemo(() => {
@@ -336,13 +340,23 @@ export default function AdminPortalModal({
                           </td>
                           <td>{rec.workshopDate || 'N/A'}</td>
                           <td style={{ textAlign: 'right' }}>
-                            <button
-                              className="btn-action-del"
-                              onClick={() => onDeleteRecord(rec.id)}
-                              title="Delete Record"
-                            >
-                              <Trash size={15} />
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                              <button
+                                className="btn-secondary btn-sm"
+                                onClick={() => setSelectedGeneratedCertRecord(rec)}
+                                title="View & Download Official Certificate"
+                                style={{ padding: '0.35rem 0.55rem' }}
+                              >
+                                <Award size={15} color="var(--primary)" />
+                              </button>
+                              <button
+                                className="btn-action-del"
+                                onClick={() => onDeleteRecord(rec.id)}
+                                title="Delete Record"
+                              >
+                                <Trash size={15} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -832,6 +846,40 @@ export default function AdminPortalModal({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* DYNAMIC OFFICIAL RANBIDGE CERTIFICATE GENERATOR MODAL */}
+      {selectedGeneratedCertRecord && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1250 }} onClick={() => setSelectedGeneratedCertRecord(null)}>
+          <div className="pin-modal-container" style={{ maxWidth: '900px', width: '92%', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon-close pin-close-pos" onClick={() => setSelectedGeneratedCertRecord(null)} title="Close Certificate (Esc)">
+              <X size={20} />
+            </button>
+
+            <div style={{ textAlign: 'left', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{
+                  background: 'var(--primary-light)',
+                  color: 'var(--primary)',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '4px'
+                }}>
+                  Official RANBIDGE Certificate Generator
+                </span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Roll No: <strong>{selectedGeneratedCertRecord.rollNumber}</strong>
+                </span>
+              </div>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                {selectedGeneratedCertRecord.fullName}
+              </h3>
+            </div>
+
+            <CertificateGenerator record={selectedGeneratedCertRecord} showActions={true} />
           </div>
         </div>
       )}
