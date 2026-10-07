@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import RegistrationForm from './components/RegistrationForm';
 import VerificationCard from './components/VerificationCard';
 import PublicSearch from './components/PublicSearch';
+import StudentCertificatePortal from './components/StudentCertificatePortal';
 import AdminPinModal from './components/AdminPinModal';
 import AdminPortalModal from './components/AdminPortalModal';
 import Footer from './components/Footer';
@@ -307,6 +308,63 @@ export default function App() {
     }
   };
 
+  // Refresh & Re-sync Data with Firebase & IndexedDB
+  const handleRefreshData = async () => {
+    let registrationCount = records.length;
+    let certCount = certificates.length;
+
+    try {
+      // 1. Re-query Registrations from Firestore
+      const regCol = collection(db, 'registrations');
+      const regSnapshot = await getDocs(regCol);
+      if (!regSnapshot.empty) {
+        const fetchedRegs = regSnapshot.docs.map(d => ({
+          firestoreId: d.id,
+          ...d.data()
+        }));
+        fetchedRegs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setRecords(fetchedRegs);
+        registrationCount = fetchedRegs.length;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(fetchedRegs));
+        } catch (e) {}
+      }
+
+      // 2. Re-query Certificates from Firestore & IndexedDB
+      const certCol = collection(db, 'certificates');
+      const certSnapshot = await getDocs(certCol);
+      const fetchedCerts = !certSnapshot.empty ? certSnapshot.docs.map(d => ({
+        firestoreId: d.id,
+        ...d.data()
+      })) : [];
+
+      const idbCerts = await getCertificatesFromIDB();
+
+      const map = new Map();
+      certificates.forEach(c => map.set(c.id, c));
+      if (idbCerts && idbCerts.length > 0) {
+        idbCerts.forEach(c => map.set(c.id, c));
+      }
+      fetchedCerts.forEach(c => map.set(c.id, { ...map.get(c.id), ...c }));
+
+      const mergedCerts = Array.from(map.values());
+      setCertificates(mergedCerts);
+      certCount = mergedCerts.length;
+
+      if (mergedCerts.length > 0) {
+        await saveCertificatesToIDB(mergedCerts);
+        try {
+          localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(mergedCerts));
+        } catch (e) {}
+      }
+
+      showToast(`⚡ Synced & Refreshed! ${registrationCount} record(s) & ${certCount} cert(s).`);
+    } catch (err) {
+      console.warn('Refresh notice:', err);
+      showToast('⚡ Local database refreshed!');
+    }
+  };
+
   return (
     <div className="app-layout">
       {/* Toast Notification Overlay */}
@@ -326,6 +384,7 @@ export default function App() {
           setActiveTab(tab);
           setLatestRecord(null);
         }}
+        onRefreshData={handleRefreshData}
         onOpenPinModal={() => setIsPinModalOpen(true)}
         isAdminUnlocked={isAdminUnlocked}
         onOpenAdminPortal={() => setIsAdminPortalOpen(true)}
@@ -351,6 +410,18 @@ export default function App() {
                 />
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'check-certs' && (
+          <div className="page-view">
+            <StudentCertificatePortal
+              records={records}
+              certificates={certificates}
+              initialSearchQuery={latestRecord ? (latestRecord.rollNumber || latestRecord.fullName) : ''}
+              onNewRegistration={() => setActiveTab('register')}
+              showToast={showToast}
+            />
           </div>
         )}
 

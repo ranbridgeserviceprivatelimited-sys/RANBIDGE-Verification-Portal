@@ -1,10 +1,19 @@
-import React, { useRef } from 'react';
-import { FormInput, Search } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { FormInput, Search, Award, RotateCw } from 'lucide-react';
 import logoImg from '../../assets/logo.jpg';
 
-export default function Navbar({ activeTab, setActiveTab, onOpenPinModal, isAdminUnlocked, onOpenAdminPortal, showToast }) {
+export default function Navbar({ 
+  activeTab, 
+  setActiveTab, 
+  onRefreshData,
+  onOpenPinModal, 
+  isAdminUnlocked, 
+  onOpenAdminPortal, 
+  showToast 
+}) {
   const clickCountRef = useRef(0);
   const clickTimerRef = useRef(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleBrandClick = (e) => {
     e.preventDefault();
@@ -26,6 +35,14 @@ export default function Navbar({ activeTab, setActiveTab, onOpenPinModal, isAdmi
     clickTimerRef.current = setTimeout(() => {
       clickCountRef.current = 0;
     }, 1200);
+  };
+
+  const handleRefreshClick = () => {
+    setIsRefreshing(true);
+    if (onRefreshData) onRefreshData();
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 900);
   };
 
   return (
@@ -53,6 +70,13 @@ export default function Navbar({ activeTab, setActiveTab, onOpenPinModal, isAdmi
               <span>Registration</span>
             </button>
             <button
+              className={`nav-tab ${activeTab === 'check-certs' ? 'active' : ''}`}
+              onClick={() => setActiveTab('check-certs')}
+            >
+              <Award size={17} />
+              <span>Check Certificates</span>
+            </button>
+            <button
               className={`nav-tab ${activeTab === 'verify' ? 'active' : ''}`}
               onClick={() => setActiveTab('verify')}
             >
@@ -60,6 +84,16 @@ export default function Navbar({ activeTab, setActiveTab, onOpenPinModal, isAdmi
               <span>Verify Record</span>
             </button>
           </div>
+
+          {/* Refresh Database & Storage Button */}
+          <button
+            className="btn-secondary btn-sm"
+            onClick={handleRefreshClick}
+            title="Refresh & Sync Data with Firebase"
+            style={{ padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)' }}
+          >
+            <RotateCw size={16} className={isRefreshing ? 'spin-anim' : ''} />
+          </button>
         </div>
       </div>
     </header>

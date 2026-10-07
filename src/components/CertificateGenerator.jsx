@@ -70,34 +70,51 @@ export default function CertificateGenerator({ record, showActions = true, onDow
 
       // 3. White Patch & Overlay Workshop Duration & Title
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(180, 555, 1054, 90);
+      ctx.fillRect(160, 550, 1094, 95);
 
-      ctx.font = '500 20px "Georgia", serif';
+      // Dynamically measure line width for perfect centering & clean spacing
+      const prefixText = 'for successfully participating in the ';
+      const durationFullText = `${durationText} Workshop on`;
+
+      ctx.font = '500 22px "Georgia", serif';
+      const prefixWidth = ctx.measureText(prefixText).width;
+
+      ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
+      const durationWidth = ctx.measureText(durationFullText).width;
+
+      const totalLineWidth = prefixWidth + durationWidth;
+      const startX = centerX - (totalLineWidth / 2);
+
+      // Draw Prefix Text ("for successfully participating in the ")
+      ctx.textAlign = 'left';
+      ctx.font = '500 22px "Georgia", serif';
       ctx.fillStyle = '#334155';
-      ctx.fillText('for successfully participating in the', centerX - 90, 576);
+      ctx.fillText(prefixText, startX, 576);
 
-      ctx.font = '700 20px "Plus Jakarta Sans", sans-serif';
+      // Draw Duration Text ("3-Day Workshop on") with guaranteed space
+      ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#1e40af';
-      ctx.fillText(`${durationText} Workshop on`, centerX + 160, 576);
+      ctx.fillText(durationFullText, startX + prefixWidth, 576);
 
-      // Main Workshop Title (Bold Uppercase)
-      ctx.font = '900 32px "Plus Jakarta Sans", sans-serif';
+      // Main Workshop Title (Bold Uppercase +2 font size: 34px)
+      ctx.textAlign = 'center';
+      ctx.font = '900 34px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#0f172a';
-      ctx.fillText(workshopTitle.toUpperCase(), centerX, 626);
+      ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
 
-      // 4. White Patch & Overlay Date & College Name
+      // 4. White Patch & Overlay Date & College Name (+2 font size: 19px)
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(240, 678, 934, 38);
+      ctx.fillRect(180, 652, 1054, 58);
 
-      // Date
-      ctx.font = '600 17px "Georgia", serif';
+      // Date (Calendar Icon)
+      ctx.font = '600 19px "Georgia", serif';
       ctx.fillStyle = '#1e293b';
       ctx.textAlign = 'right';
-      ctx.fillText(`📅  ${workshopDate}`, centerX - 25, 702);
+      ctx.fillText(`📅  ${workshopDate}`, centerX - 25, 690);
 
-      // College Name
+      // College Name with Location Pin Symbol 📍 on the left
       ctx.textAlign = 'left';
-      ctx.fillText(collegeName, centerX + 35, 702);
+      ctx.fillText(`📍  ${collegeName}`, centerX + 25, 690);
     };
 
     bgImage.onerror = () => {
