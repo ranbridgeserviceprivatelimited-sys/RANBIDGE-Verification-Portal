@@ -1,23 +1,26 @@
 import React, { useState } from 'react';
 import { Search, UserCheck, AlertCircle, FileCheck } from 'lucide-react';
 import VerificationCard from './VerificationCard';
+import CertificateDownloadBox from './CertificateDownloadBox';
 
-export default function PublicSearch({ records, onNewRegistration, showToast }) {
+export default function PublicSearch({ records, certificates = [], onNewRegistration, showToast }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [searchedQueryStr, setSearchedQueryStr] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = (e) => {
     e.preventDefault();
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
-      showToast('Please enter a name, roll number, or ID');
+      showToast('Please enter a participant name, roll number, or ID');
       return;
     }
 
+    setSearchedQueryStr(searchQuery.trim());
     const match = records.find(r => 
       (r.id && r.id.toLowerCase() === query) ||
-      (r.rollNumber && r.rollNumber.toLowerCase() === query) ||
+      (r.rollNumber && r.rollNumber.toLowerCase().includes(query)) ||
       (r.fullName && r.fullName.toLowerCase().includes(query))
     );
 
@@ -27,14 +30,28 @@ export default function PublicSearch({ records, onNewRegistration, showToast }) 
       showToast(`Record found for ${match.fullName}`);
     } else {
       setSelectedRecord(null);
-      showToast('No matching registration found');
+      showToast('Search completed');
     }
   };
+
+  const standaloneCertificates = certificates.filter(c => {
+    const query = searchedQueryStr.toLowerCase().trim();
+    if (!query) return false;
+    const certRoll = (c.rollNumber || '').toLowerCase();
+    const certName = (c.studentName || c.fullName || '').toLowerCase();
+    const certFile = (c.fileName || '').toLowerCase();
+
+    return (
+      certRoll.includes(query) ||
+      certName.includes(query) ||
+      certFile.includes(query)
+    );
+  });
 
   return (
     <div style={{ maxWidth: '850px', margin: '0 auto' }}>
       <div className="form-container-wrapper" style={{ marginBottom: '2rem' }}>
-        <div style={{ textAlignment: 'center', marginBottom: '1.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -47,13 +64,13 @@ export default function PublicSearch({ records, onNewRegistration, showToast }) 
             fontWeight: 700,
             marginBottom: '0.75rem'
           }}>
-            <UserCheck size={16} /> Credential Search Portal
+            <UserCheck size={16} /> Credential & Certificate Search Portal
           </div>
           <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)' }}>
-            Verify Workshop Registration Status
+            Search Registration & Download Certificate
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.3rem' }}>
-            Enter your Roll Number, Verification ID (e.g. REG-123456), or Full Name below.
+            Enter Participant Name, Roll Number, or Verification ID below.
           </p>
         </div>
 
@@ -65,7 +82,7 @@ export default function PublicSearch({ records, onNewRegistration, showToast }) 
                 type="text"
                 className="form-input"
                 style={{ paddingLeft: '2.8rem' }}
-                placeholder="e.g. 21CS0104 or Aarav Sharma or REG-102938"
+                placeholder="e.g. Aarav Sharma or 21CS1084 or REG-102938"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -80,6 +97,7 @@ export default function PublicSearch({ records, onNewRegistration, showToast }) 
       {selectedRecord && (
         <VerificationCard
           record={selectedRecord}
+          certificates={certificates}
           onNewRegistration={() => {
             setSelectedRecord(null);
             onNewRegistration();
@@ -88,8 +106,25 @@ export default function PublicSearch({ records, onNewRegistration, showToast }) 
         />
       )}
 
-      {hasSearched && !selectedRecord && (
-        <div className="submission-card" style={{ textAlignment: 'center', padding: '3rem 2rem' }}>
+      {!selectedRecord && hasSearched && standaloneCertificates.length > 0 && (
+        <div className="submission-card">
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+            Issued Certificates Found
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            Found official certificate document(s) matching "{searchedQueryStr}":
+          </p>
+
+          <CertificateDownloadBox
+            certificates={certificates}
+            rollNumber={searchedQueryStr}
+            fullName={searchedQueryStr}
+          />
+        </div>
+      )}
+
+      {hasSearched && !selectedRecord && standaloneCertificates.length === 0 && (
+        <div className="submission-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{
             width: '56px',
             height: '56px',
@@ -104,10 +139,10 @@ export default function PublicSearch({ records, onNewRegistration, showToast }) 
             <AlertCircle size={28} />
           </div>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>
-            No Verification Record Found
+            No Registration or Certificate Found
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginTop: '0.4rem', marginBottom: '1.5rem' }}>
-            We could not find any active workshop registration matching "{searchQuery}". Please check your details or submit a new registration.
+            We could not find any registration record or uploaded certificate matching "{searchedQueryStr}". Please check your details or submit a registration.
           </p>
           <button className="btn-primary" onClick={onNewRegistration}>
             <FileCheck size={18} /> Register Now

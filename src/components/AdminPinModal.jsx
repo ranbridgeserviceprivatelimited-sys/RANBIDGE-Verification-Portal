@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, Key, X, AlertTriangle } from 'lucide-react';
 
 const ADMIN_SECRET_PIN = '824739';
@@ -6,6 +6,19 @@ const ADMIN_SECRET_PIN = '824739';
 export default function AdminPinModal({ isOpen, onClose, onSuccess, showToast }) {
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

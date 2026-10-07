@@ -6,9 +6,13 @@ import PublicSearch from './components/PublicSearch';
 import AdminPinModal from './components/AdminPinModal';
 import AdminPortalModal from './components/AdminPortalModal';
 import Footer from './components/Footer';
-import { CheckCircle2, Info } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
+
+// Firebase Imports
+import { db, collection, addDoc, onSnapshot, deleteDoc, doc, getDocs } from './firebase';
 
 const STORAGE_KEY = 'ranbidge_registrations';
+const CERTS_STORAGE_KEY = 'ranbidge_certificates';
 
 export default function App() {
   const [records, setRecords] = useState(() => {
@@ -21,6 +25,16 @@ export default function App() {
     }
   });
 
+  const [certificates, setCertificates] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CERTS_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (err) {
+      console.error('Error reading certs localStorage:', err);
+      return [];
+    }
+  });
+
   const [activeTab, setActiveTab] = useState('register');
   const [latestRecord, setLatestRecord] = useState(null);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
@@ -28,14 +42,69 @@ export default function App() {
   const [isAdminPortalOpen, setIsAdminPortalOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
-  // Sync state to localStorage whenever records change
+  // Listen to Firestore registrations updates
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      const colRef = collection(db, 'registrations');
+      unsubscribe = onSnapshot(colRef, (snapshot) => {
+        if (!snapshot.empty) {
+          const fetched = snapshot.docs.map(d => ({
+            firestoreId: d.id,
+            ...d.data()
+          }));
+          fetched.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+          setRecords(fetched);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(fetched));
+          } catch (e) {}
+        }
+      }, (err) => {
+        console.warn('Firestore registrations fallback:', err);
+      });
+    } catch (err) {
+      console.warn('Firebase init fallback:', err);
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to Firestore certificates updates
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      const colRef = collection(db, 'certificates');
+      unsubscribe = onSnapshot(colRef, (snapshot) => {
+        if (!snapshot.empty) {
+          const fetched = snapshot.docs.map(d => ({
+            firestoreId: d.id,
+            ...d.data()
+          }));
+          setCertificates(fetched);
+          try {
+            localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(fetched));
+          } catch (e) {}
+        }
+      }, (err) => {
+        console.warn('Firestore certs fallback:', err);
+      });
+    } catch (err) {
+      console.warn('Firebase certs fallback:', err);
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // Sync state to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    } catch (err) {
-      console.error('Error writing to localStorage:', err);
-    }
+    } catch (err) {}
   }, [records]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(certificates));
+    } catch (err) {}
+  }, [certificates]);
 
   // Toast message helper
   const showToast = (message) => {
@@ -46,12 +115,24 @@ export default function App() {
     }, 3500);
   };
 
-  // Submission handler
-  const handleRegistrationSubmit = (newRecord) => {
-    setRecords(prev => [newRecord, ...prev]);
-    setLatestRecord(newRecord);
+  // Registration Submission handler
+  const handleRegistrationSubmit = async (newRecord) => {
+    const recordWithTime = {
+      ...newRecord,
+      timestamp: Date.now()
+    };
+
+    setRecords(prev => [recordWithTime, ...prev]);
+    setLatestRecord(recordWithTime);
     showToast(`Registration completed for ${newRecord.fullName}!`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    try {
+      const colRef = collection(db, 'registrations');
+      await addDoc(colRef, recordWithTime);
+    } catch (err) {
+      console.error('Error saving registration to Firebase:', err);
+    }
   };
 
   const handleNewRegistration = () => {
@@ -60,16 +141,34 @@ export default function App() {
   };
 
   // Delete record handler
-  const handleDeleteRecord = (id) => {
-    setRecords(prev => prev.filter(r => r.id !== id));
+  const handleDeleteRecord = async (id) => {
+    const target = records.find(r => r.id === id || r.firestoreId === id);
+    setRecords(prev => prev.filter(r => r.id !== id && r.firestoreId !== id));
     showToast('Record deleted successfully');
+
+    if (target && target.firestoreId) {
+      try {
+        await deleteDoc(doc(db, 'registrations', target.firestoreId));
+      } catch (err) {
+        console.error('Error deleting registration from Firestore:', err);
+      }
+    }
   };
 
-  // Clear all handler
-  const handleClearAll = () => {
+  // Clear all registrations handler
+  const handleClearAll = async () => {
     if (window.confirm('Are you sure you want to delete ALL registration records? This action cannot be undone.')) {
       setRecords([]);
       showToast('All registration records have been cleared');
+
+      try {
+        const colRef = collection(db, 'registrations');
+        const snapshot = await getDocs(colRef);
+        const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, 'registrations', d.id)));
+        await Promise.all(deletePromises);
+      } catch (err) {
+        console.error('Error clearing Firestore registrations:', err);
+      }
     }
   };
 
@@ -111,8 +210,36 @@ export default function App() {
       }
     ];
 
-    setRecords(prev => [...sampleRecords, ...prev]);
-    showToast('Loaded 3 demo registration records!');
+    sampleRecords.forEach(rec => handleRegistrationSubmit(rec));
+  };
+
+  // Save Dumped Certificates handler
+  const handleSaveCertificates = async (newCerts) => {
+    setCertificates(prev => [...newCerts, ...prev]);
+
+    try {
+      const colRef = collection(db, 'certificates');
+      for (const cert of newCerts) {
+        await addDoc(colRef, cert);
+      }
+    } catch (err) {
+      console.error('Error saving certificates to Firebase:', err);
+    }
+  };
+
+  // Delete Certificate handler
+  const handleDeleteCertificate = async (id) => {
+    const target = certificates.find(c => c.id === id || c.firestoreId === id);
+    setCertificates(prev => prev.filter(c => c.id !== id && c.firestoreId !== id));
+    showToast('Certificate deleted');
+
+    if (target && target.firestoreId) {
+      try {
+        await deleteDoc(doc(db, 'certificates', target.firestoreId));
+      } catch (err) {
+        console.error('Error deleting certificate from Firestore:', err);
+      }
+    }
   };
 
   return (
@@ -148,6 +275,7 @@ export default function App() {
               {latestRecord ? (
                 <VerificationCard
                   record={latestRecord}
+                  certificates={certificates}
                   onNewRegistration={handleNewRegistration}
                   showToast={showToast}
                 />
@@ -165,6 +293,7 @@ export default function App() {
           <div className="page-view">
             <PublicSearch
               records={records}
+              certificates={certificates}
               onNewRegistration={() => setActiveTab('register')}
               showToast={showToast}
             />
@@ -192,9 +321,12 @@ export default function App() {
         isOpen={isAdminPortalOpen}
         onClose={() => setIsAdminPortalOpen(false)}
         records={records}
+        certificates={certificates}
         onDeleteRecord={handleDeleteRecord}
         onClearAllRecords={handleClearAll}
         onLoadSampleData={handleLoadSampleData}
+        onSaveCertificates={handleSaveCertificates}
+        onDeleteCertificate={handleDeleteCertificate}
         showToast={showToast}
       />
     </div>

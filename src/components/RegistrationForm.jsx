@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Building2, Hash, Calendar, Laptop, BookOpen, CalendarCheck, RotateCcw, Send } from 'lucide-react';
+import logoImg from '../../assets/logo.jpg';
 
 export default function RegistrationForm({ onSubmitSuccess, showToast }) {
   const getTodayDateStr = () => new Date().toISOString().split('T')[0];
@@ -62,7 +63,7 @@ export default function RegistrationForm({ onSubmitSuccess, showToast }) {
           <h2 className="form-title">Registration Form</h2>
           <p className="form-subtitle">Please enter your academic details below.</p>
         </div>
-        <img src="/assets/logo.jpg" alt="RANBIDGE Solutions Logo" style={{ height: '44px', objectFit: 'contain' }} />
+        <img src={logoImg} alt="RANBIDGE Solutions Logo" style={{ height: '44px', objectFit: 'contain' }} />
       </div>
 
       <form onSubmit={handleSubmit}>

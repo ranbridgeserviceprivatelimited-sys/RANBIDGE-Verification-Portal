@@ -1,7 +1,9 @@
 import React from 'react';
-import { Check, Printer, Plus, ShieldCheck, QrCode } from 'lucide-react';
+import { Check, Printer, Plus, ShieldCheck } from 'lucide-react';
+import CertificateDownloadBox from './CertificateDownloadBox';
+import logoImg from '../../assets/logo.jpg';
 
-export default function VerificationCard({ record, onNewRegistration, showToast }) {
+export default function VerificationCard({ record, certificates = [], onNewRegistration, showToast }) {
   if (!record) return null;
 
   const handlePrint = () => {
@@ -37,7 +39,7 @@ export default function VerificationCard({ record, onNewRegistration, showToast 
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <img src="/assets/logo.jpg" alt="RANBIDGE Solutions Logo" style={{ height: '48px', objectFit: 'contain' }} />
+        <img src={logoImg} alt="RANBIDGE Solutions Logo" style={{ height: '48px', objectFit: 'contain' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{
             background: 'var(--success-light)',
@@ -101,6 +103,13 @@ export default function VerificationCard({ record, onNewRegistration, showToast 
           <span className="detail-value">{formatDate(record.workshopDate)}</span>
         </div>
       </div>
+
+      {/* Download Box for Certificates matching this Roll Number / Name */}
+      <CertificateDownloadBox
+        certificates={certificates}
+        rollNumber={record.rollNumber}
+        fullName={record.fullName}
+      />
 
       <div className="card-barcode-mock">
         <div className="barcode-stripes"></div>

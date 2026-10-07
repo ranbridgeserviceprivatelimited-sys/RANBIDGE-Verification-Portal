@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { FormInput, Search } from 'lucide-react';
+import logoImg from '../../assets/logo.jpg';
 
 export default function Navbar({ activeTab, setActiveTab, onOpenPinModal, isAdminUnlocked, onOpenAdminPortal, showToast }) {
   const clickCountRef = useRef(0);
@@ -35,7 +36,7 @@ export default function Navbar({ activeTab, setActiveTab, onOpenPinModal, isAdmi
           onClick={handleBrandClick} 
           title="RANBIDGE Solutions (Triple click logo for Secret Admin Access)"
         >
-          <img src="/assets/logo.jpg" alt="RANBIDGE Solutions Logo" className="brand-logo" />
+          <img src={logoImg} alt="RANBIDGE Solutions Logo" className="brand-logo" />
           <div>
             <div className="brand-title">RANBIDGE</div>
             <div className="brand-subtitle">Verification Portal</div>

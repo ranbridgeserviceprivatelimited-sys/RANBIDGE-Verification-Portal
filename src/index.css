@@ -587,6 +587,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  overflow-y: auto;
   animation: fadeIn 0.25s ease;
 }
 
@@ -703,7 +704,7 @@ body {
   display: flex;
   flex-direction: column;
   padding: 2rem;
-  overflow: hidden;
+  overflow-y: auto;
   animation: modalSlideUp 0.3s ease;
 }
 
@@ -1043,4 +1044,42 @@ body {
   .details-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Certificate Grid Card & Clickable Stat Card Hover Styles */
+.cert-grid-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary) !important;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.15) !important;
+}
+
+.admin-stat-card.clickable {
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+.admin-stat-card.clickable:hover {
+  background: #eff6ff;
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.12);
+}
+
+.college-card {
+  background: #ffffff;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.college-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
 }
