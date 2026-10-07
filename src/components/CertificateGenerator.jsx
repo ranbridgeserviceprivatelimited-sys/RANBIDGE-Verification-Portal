@@ -112,9 +112,9 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.fillStyle = '#0c2340';
       ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
 
-      // 4. White Patch & Overlay Date, College Name & Organized By
+      // 4. White Patch & Overlay Date & College Name
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(160, 650, 1094, 82);
+      ctx.fillRect(160, 655, 1094, 55);
 
       // Line 3: Date (Calendar Icon) & College Name (Location Pin Icon) - Perfectly Centered
       const dateStr = `📅  ${workshopDate}`;
@@ -130,14 +130,8 @@ export default function CertificateGenerator({ record, showActions = true, onDow
 
       ctx.textAlign = 'left';
       ctx.fillStyle = '#1b365d';
-      ctx.fillText(dateStr, line3StartX, 684);
-      ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 684);
-
-      // Line 4: Organized by Ranbidge Solutions Private Limited
-      ctx.textAlign = 'center';
-      ctx.font = 'italic 500 18px "Georgia", serif';
-      ctx.fillStyle = '#1b365d';
-      ctx.fillText('Organized by Ranbidge Solutions Private Limited', centerX, 718);
+      ctx.fillText(dateStr, line3StartX, 688);
+      ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 688);
     };
 
     bgImage.onerror = () => {
@@ -167,7 +161,7 @@ export default function CertificateGenerator({ record, showActions = true, onDow
         ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(160, 650, 1094, 82);
+        ctx.fillRect(160, 655, 1094, 55);
         
         const dateStr = `📅  ${workshopDate}`;
         const collegeStr = `📍  ${collegeName}`;
@@ -179,12 +173,8 @@ export default function CertificateGenerator({ record, showActions = true, onDow
         const line3StartX = centerX - (line3TotalWidth / 2);
         ctx.textAlign = 'left';
         ctx.fillStyle = '#1b365d';
-        ctx.fillText(dateStr, line3StartX, 684);
-        ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 684);
-
-        ctx.textAlign = 'center';
-        ctx.font = 'italic 500 18px "Georgia", serif';
-        ctx.fillText('Organized by Ranbidge Solutions Private Limited', centerX, 718);
+        ctx.fillText(dateStr, line3StartX, 688);
+        ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 688);
       };
     };
   };
