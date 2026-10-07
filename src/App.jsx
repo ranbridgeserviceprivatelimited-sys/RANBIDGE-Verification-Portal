@@ -11,6 +11,13 @@ import { CheckCircle2 } from 'lucide-react';
 // Firebase Imports
 import { db, collection, addDoc, onSnapshot, deleteDoc, doc, getDocs } from './firebase';
 
+// IndexedDB Persistence Import for large binary certificate files
+import { 
+  saveCertificatesToIDB, 
+  getCertificatesFromIDB, 
+  deleteCertificateFromIDB 
+} from './utils/indexedDB';
+
 const STORAGE_KEY = 'ranbidge_registrations';
 const CERTS_STORAGE_KEY = 'ranbidge_certificates';
 
@@ -42,7 +49,25 @@ export default function App() {
   const [isAdminPortalOpen, setIsAdminPortalOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
-  // Listen to Firestore registrations updates
+  // 1. Initial Load: Retrieve certificates from IndexedDB to guarantee state persistence after page refresh
+  useEffect(() => {
+    getCertificatesFromIDB()
+      .then(idbCerts => {
+        if (idbCerts && idbCerts.length > 0) {
+          setCertificates(prev => {
+            const map = new Map();
+            prev.forEach(c => map.set(c.id, c));
+            idbCerts.forEach(c => map.set(c.id, c));
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Error reading from IndexedDB:', err);
+      });
+  }, []);
+
+  // 2. Listen to Firestore registrations updates
   useEffect(() => {
     let unsubscribe = () => {};
     try {
@@ -68,7 +93,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Listen to Firestore certificates updates
+  // 3. Listen to Firestore certificates updates & merge with local IndexedDB state
   useEffect(() => {
     let unsubscribe = () => {};
     try {
@@ -79,10 +104,18 @@ export default function App() {
             firestoreId: d.id,
             ...d.data()
           }));
-          setCertificates(fetched);
-          try {
-            localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(fetched));
-          } catch (e) {}
+
+          setCertificates(prev => {
+            const map = new Map();
+            prev.forEach(c => map.set(c.id, c));
+            fetched.forEach(c => map.set(c.id, { ...map.get(c.id), ...c }));
+            const merged = Array.from(map.values());
+            saveCertificatesToIDB(merged);
+            try {
+              localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
         }
       }, (err) => {
         console.warn('Firestore certs fallback:', err);
@@ -93,17 +126,23 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync state to localStorage
+  // Sync registration records state to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
     } catch (err) {}
   }, [records]);
 
+  // Sync certificates state to both IndexedDB and localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(certificates));
-    } catch (err) {}
+    if (certificates.length > 0) {
+      saveCertificatesToIDB(certificates);
+      try {
+        localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(certificates));
+      } catch (err) {
+        console.warn('LocalStorage certs quota exceeded, safely saved to IndexedDB');
+      }
+    }
   }, [certificates]);
 
   // Toast message helper
@@ -215,12 +254,30 @@ export default function App() {
 
   // Save Dumped Certificates handler
   const handleSaveCertificates = async (newCerts) => {
-    setCertificates(prev => [...newCerts, ...prev]);
+    const updated = [...newCerts, ...certificates];
+    setCertificates(updated);
+    showToast(`Saved ${newCerts.length} certificate(s) persistently!`);
 
+    // 1. Save directly to IndexedDB (unlimited binary/base64 storage)
+    await saveCertificatesToIDB(updated);
+
+    // 2. Backup to localStorage with safety check
+    try {
+      localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('LocalStorage backup skipped due to size, IndexedDB holds all certificates safely.');
+    }
+
+    // 3. Sync to Firebase Firestore
     try {
       const colRef = collection(db, 'certificates');
       for (const cert of newCerts) {
-        await addDoc(colRef, cert);
+        const certStr = JSON.stringify(cert);
+        if (certStr.length < 950000) {
+          await addDoc(colRef, cert);
+        } else {
+          console.warn(`Certificate ${cert.fileName} exceeds 950KB Firestore doc limit, stored in IndexedDB.`);
+        }
       }
     } catch (err) {
       console.error('Error saving certificates to Firebase:', err);
@@ -230,9 +287,17 @@ export default function App() {
   // Delete Certificate handler
   const handleDeleteCertificate = async (id) => {
     const target = certificates.find(c => c.id === id || c.firestoreId === id);
-    setCertificates(prev => prev.filter(c => c.id !== id && c.firestoreId !== id));
+    const updated = certificates.filter(c => c.id !== id && c.firestoreId !== id);
+    setCertificates(updated);
     showToast('Certificate deleted');
 
+    // Remove from IndexedDB & LocalStorage
+    await deleteCertificateFromIDB(id);
+    try {
+      localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    // Remove from Firestore
     if (target && target.firestoreId) {
       try {
         await deleteDoc(doc(db, 'certificates', target.firestoreId));

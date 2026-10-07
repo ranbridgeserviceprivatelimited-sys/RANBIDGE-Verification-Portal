@@ -67,15 +67,70 @@ export default function CertificateDumpUpload({ certificates, onSaveCertificates
         const reader = new FileReader();
         reader.onload = (event) => {
           const meta = parseFilenameMeta(file.name);
-          resolve({
-            id: 'CERT-' + Math.floor(100000 + Math.random() * 900000),
-            fileName: file.name,
-            fileType: getFileType(file.name),
-            fileData: event.target.result,
-            rollNumber: meta.rollNumber,
-            studentName: meta.studentName,
-            uploadedAt: new Date().toLocaleString()
-          });
+          const rawData = event.target.result;
+          const fileType = getFileType(file.name);
+
+          if (fileType === 'image') {
+            // Compress large image files to crisp ~200-300 KB base64 for fast loading & reliable storage
+            const img = new Image();
+            img.src = rawData;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 1600;
+              const MAX_HEIGHT = 1600;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              const compressedData = canvas.toDataURL('image/jpeg', 0.85);
+
+              resolve({
+                id: 'CERT-' + Math.floor(100000 + Math.random() * 900000),
+                fileName: file.name,
+                fileType: fileType,
+                fileData: compressedData,
+                rollNumber: meta.rollNumber,
+                studentName: meta.studentName,
+                uploadedAt: new Date().toLocaleString()
+              });
+            };
+            img.onerror = () => {
+              resolve({
+                id: 'CERT-' + Math.floor(100000 + Math.random() * 900000),
+                fileName: file.name,
+                fileType: fileType,
+                fileData: rawData,
+                rollNumber: meta.rollNumber,
+                studentName: meta.studentName,
+                uploadedAt: new Date().toLocaleString()
+              });
+            };
+          } else {
+            resolve({
+              id: 'CERT-' + Math.floor(100000 + Math.random() * 900000),
+              fileName: file.name,
+              fileType: fileType,
+              fileData: rawData,
+              rollNumber: meta.rollNumber,
+              studentName: meta.studentName,
+              uploadedAt: new Date().toLocaleString()
+            });
+          }
         };
         reader.readAsDataURL(file);
       });
