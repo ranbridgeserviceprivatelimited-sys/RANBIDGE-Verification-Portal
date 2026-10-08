@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { User, Building2, Hash, Calendar, Laptop, BookOpen, CalendarCheck, RotateCcw, Send, ShieldCheck, CheckCircle2, Clock } from 'lucide-react';
 import logoImg from '../../assets/logo.jpg';
 
-export default function RegistrationForm({ onSubmitSuccess, masterDump = [], showToast }) {
+export default function RegistrationForm({ onSubmitSuccess, masterDump = [], records = [], certificates = [], showToast }) {
   const getTodayDateStr = () => new Date().toISOString().split('T')[0];
 
   const [formData, setFormData] = useState({
@@ -20,6 +20,120 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], sho
     const roll = formData.rollNumber.trim().toUpperCase();
     return masterDump.find(m => m.rollNumber && m.rollNumber.trim().toUpperCase() === roll);
   }, [formData.rollNumber, masterDump]);
+
+  // Dynamic Auto-complete Suggestions derived from Master Dump, Admin Records, Certificates, & Pre-seeded Folders
+  const collegeSuggestions = useMemo(() => {
+    const set = new Set([
+      "National Institute of Technology",
+      "Indian Institute of Technology, Madras",
+      "Anna University, Chennai",
+      "SRM Institute of Science and Technology",
+      "Vellore Institute of Technology (VIT)",
+      "PSG College of Technology",
+      "SSN College of Engineering",
+      "Sathyabama Institute of Science and Technology",
+      "St. Joseph's College of Engineering",
+      "Rajalakshmi Engineering College",
+      "Saveetha Engineering College",
+      "Sri Sairam Engineering College",
+      "Hindusthan College of Engineering and Technology",
+      "KPR Institute of Engineering and Technology",
+      "Vel Tech Rangarajan Dr. Sagunthala R&D Institute",
+      "B.S. Abdur Rahman Crescent Institute of Science and Technology",
+      "Kongu Engineering College",
+      "Bannari Amman Institute of Technology",
+      "Coimbatore Institute of Technology",
+      "Kumaraguru College of Technology"
+    ]);
+
+    (masterDump || []).forEach(m => {
+      const val = m.college || m.collegeName || m.institution;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    (records || []).forEach(r => {
+      const val = r.college || r.institution;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    (certificates || []).forEach(c => {
+      const val = c.college || c.collegeName || c.institution;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    return Array.from(set).sort();
+  }, [masterDump, records, certificates]);
+
+  const departmentSuggestions = useMemo(() => {
+    const set = new Set([
+      "Computer Science & Engineering",
+      "Information Technology",
+      "Artificial Intelligence & Data Science",
+      "Artificial Intelligence & Machine Learning",
+      "Electronics & Communication Engineering",
+      "Electrical & Electronics Engineering",
+      "Mechanical Engineering",
+      "Civil Engineering",
+      "Cyber Security",
+      "Data Science",
+      "Robotics & Automation",
+      "Biomedical Engineering",
+      "Chemical Engineering",
+      "Aeronautical Engineering",
+      "Mechatronics Engineering"
+    ]);
+
+    (masterDump || []).forEach(m => {
+      const val = m.department || m.dept;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    (records || []).forEach(r => {
+      const val = r.department || r.dept;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    (certificates || []).forEach(c => {
+      const val = c.department || c.dept;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    return Array.from(set).sort();
+  }, [masterDump, records, certificates]);
+
+  const workshopSuggestions = useMemo(() => {
+    const set = new Set([
+      "AI & Cloud Architecture",
+      "Full Stack Web Development",
+      "Cyber Security & Ethical Hacking",
+      "Data Science & Machine Learning",
+      "Embedded Systems & IoT",
+      "DevOps & Cloud Computing",
+      "VLSI Design & Microcontrollers",
+      "Blockchain Technology & Smart Contracts",
+      "Python Programming & Automation",
+      "React.js & Modern Web Frameworks",
+      "Mobile App Development with Flutter",
+      "UI/UX Design & System Architecture"
+    ]);
+
+    (masterDump || []).forEach(m => {
+      const val = m.workshopName || m.title || m.course;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    (records || []).forEach(r => {
+      const val = r.workshopName || r.title || r.course;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    (certificates || []).forEach(c => {
+      const val = c.workshopName || c.title || c.course;
+      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
+    });
+
+    return Array.from(set).sort();
+  }, [masterDump, records, certificates]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,8 +175,8 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], sho
       department: formData.department.trim(),
       workshopName: formData.workshopName.trim(),
       workshopDate: formData.workshopDate,
-      verificationStatus: isVerified ? 'verified' : 'pending',
-      verifiedAt: isVerified ? new Date().toLocaleString() : null,
+      verificationStatus: 'verified',
+      verifiedAt: new Date().toLocaleString(),
       matchedAdminData: matchedMasterEntry || null,
       submittedAt: new Date().toLocaleString()
     };
@@ -189,12 +303,19 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], sho
                 type="text"
                 id="college"
                 name="college"
+                list="college-suggestions"
                 className="form-input"
                 placeholder="e.g. National Institute of Technology"
                 value={formData.college}
                 onChange={handleChange}
+                autoComplete="on"
                 required
               />
+              <datalist id="college-suggestions">
+                {collegeSuggestions.map((col, idx) => (
+                  <option key={idx} value={col} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -254,12 +375,19 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], sho
                 type="text"
                 id="department"
                 name="department"
+                list="department-suggestions"
                 className="form-input"
                 placeholder="e.g. Computer Science Engineering"
                 value={formData.department}
                 onChange={handleChange}
+                autoComplete="on"
                 required
               />
+              <datalist id="department-suggestions">
+                {departmentSuggestions.map((dept, idx) => (
+                  <option key={idx} value={dept} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -275,12 +403,19 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], sho
                 type="text"
                 id="workshopName"
                 name="workshopName"
+                list="workshop-suggestions"
                 className="form-input"
                 placeholder="e.g. AI & Cloud Architecture"
                 value={formData.workshopName}
                 onChange={handleChange}
+                autoComplete="on"
                 required
               />
+              <datalist id="workshop-suggestions">
+                {workshopSuggestions.map((ws, idx) => (
+                  <option key={idx} value={ws} />
+                ))}
+              </datalist>
             </div>
           </div>
 

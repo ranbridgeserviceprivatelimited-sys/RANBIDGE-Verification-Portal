@@ -3,17 +3,18 @@ import { Search, UserCheck, AlertCircle, FileCheck } from 'lucide-react';
 import VerificationCard from './VerificationCard';
 import CertificateDownloadBox from './CertificateDownloadBox';
 
-export default function PublicSearch({ records, certificates = [], onNewRegistration, showToast }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRecord, setSelectedRecord] = useState(null);
-  const [searchedQueryStr, setSearchedQueryStr] = useState('');
-  const [hasSearched, setHasSearched] = useState(false);
+export default function PublicSearch({ records = [], certificates = [], latestRecord, onNewRegistration, showToast }) {
+  const initialTargetRecord = latestRecord || (records.length > 0 ? records[0] : null);
+  const [searchQuery, setSearchQuery] = useState(initialTargetRecord ? (initialTargetRecord.rollNumber || initialTargetRecord.fullName || '') : '');
+  const [selectedRecord, setSelectedRecord] = useState(initialTargetRecord);
+  const [searchedQueryStr, setSearchedQueryStr] = useState(initialTargetRecord ? (initialTargetRecord.rollNumber || initialTargetRecord.fullName || '') : '');
+  const [hasSearched, setHasSearched] = useState(Boolean(initialTargetRecord));
 
   const handleSearch = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
-      showToast('Please enter a participant name, roll number, or ID');
+      if (showToast) showToast('Please enter a participant name, roll number, or ID');
       return;
     }
 
@@ -27,10 +28,10 @@ export default function PublicSearch({ records, certificates = [], onNewRegistra
     setHasSearched(true);
     if (match) {
       setSelectedRecord(match);
-      showToast(`Record found for ${match.fullName}`);
+      if (showToast) showToast(`Record found for ${match.fullName}`);
     } else {
       setSelectedRecord(null);
-      showToast('Search completed');
+      if (showToast) showToast('Search completed');
     }
   };
 
@@ -106,23 +107,7 @@ export default function PublicSearch({ records, certificates = [], onNewRegistra
         />
       )}
 
-      {!selectedRecord && hasSearched && standaloneCertificates.length > 0 && (
-        <div className="submission-card">
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-            Issued Certificates Found
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Found official certificate document(s) matching "{searchedQueryStr}":
-          </p>
 
-          <CertificateDownloadBox
-            certificates={certificates}
-            rollNumber={searchedQueryStr}
-            fullName={searchedQueryStr}
-            workshopName={searchedQueryStr}
-          />
-        </div>
-      )}
 
       {hasSearched && !selectedRecord && standaloneCertificates.length === 0 && (
         <div className="submission-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>

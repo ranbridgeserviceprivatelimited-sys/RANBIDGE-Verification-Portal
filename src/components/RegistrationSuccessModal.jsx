@@ -157,26 +157,25 @@ export default function RegistrationSuccessModal({ isOpen, record, onClose, onGo
         </div>
 
         {/* Information Callout */}
-        <div className="success-info-banner">
-          <Award size={20} color="#1e40af" style={{ flexShrink: 0 }} />
+        <div className="success-info-banner" style={{ background: '#f8fafc', borderColor: '#cbd5e1' }}>
+          <Clock size={20} color="#0284c7" style={{ flexShrink: 0 }} />
           <div>
-            <strong>Certificate Information:</strong>
-            <p>
-              Your certificate can be checked and downloaded anytime from the <strong>Download Certificate</strong> tab using your Roll Number (<strong>{record.rollNumber}</strong>).
+            <strong style={{ color: '#0f172a' }}>Certificate Issuance Notice:</strong>
+            <p style={{ color: '#475569', marginTop: '0.25rem', fontSize: '0.85rem' }}>
+              Your certificate will be automatically generated and issued once your registration is reviewed and accepted by the Administrator.
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="success-actions">
-          <button className="btn-secondary" onClick={onClose}>
-            <Plus size={18} />
-            <span>Register Another</span>
-          </button>
-
-          <button className="btn-primary" onClick={() => onGoToCertificates(record.rollNumber)}>
+        <div className="success-actions" style={{ justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button className="btn-secondary" onClick={() => { onClose(); if (onGoToCertificates) onGoToCertificates(); }} style={{ padding: '0.7rem 1.25rem' }}>
             <Award size={18} />
-            <span>Download Certificate</span>
+            <span>Verify Document & Certificate</span>
+          </button>
+          <button className="btn-primary" onClick={onClose} style={{ padding: '0.7rem 1.5rem' }}>
+            <CheckCircle2 size={18} />
+            <span>Done</span>
           </button>
         </div>
 

@@ -7,7 +7,7 @@ import CertificateDownloadBox from './CertificateDownloadBox';
 export default function VerificationCard({ record, certificates = [], onNewRegistration, showToast }) {
   const [selectedPreview, setSelectedPreview] = useState(null);
 
-  const isVerified = record.verificationStatus === 'verified' || !record.verificationStatus;
+  const isVerified = record.verificationStatus === 'verified' || !record.verificationStatus || record.verificationStatus !== 'rejected';
 
   return (
     <div className="submission-card">
@@ -107,13 +107,7 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
         <CertificateGenerator record={record} showActions={true} />
       </div>
 
-      {/* DUMPED CERTIFICATES DISPLAY SECTION (IF ADMIN DUMPED FILES) */}
-      <CertificateDownloadBox
-        certificates={certificates}
-        rollNumber={record.rollNumber}
-        fullName={record.fullName}
-        workshopName={record.workshopName}
-      />
+
 
       {/* Action Footer */}
       <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Filter,
   UserCheck,
+  UserPlus,
   User,
   GraduationCap,
   CheckCircle2,
@@ -25,7 +26,18 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronDown,
-  RotateCcw
+  RotateCcw,
+  Folder,
+  FolderPlus,
+  Edit3,
+  MoreVertical,
+  Layers,
+  Scissors,
+  Copy,
+  Clipboard,
+  Plus,
+  Clock,
+  Settings
 } from 'lucide-react';
 import CertificateDumpUpload from './CertificateDumpUpload';
 import CertificateGenerator from './CertificateGenerator';
@@ -38,6 +50,8 @@ export default function AdminPortalModal({
   certificates,
   masterDump = [],
   onDeleteRecord,
+  onVerifyRecord,
+  onAddRecord,
   onClearAllRecords,
   onLoadSampleData,
   onSaveCertificates,
@@ -48,7 +62,13 @@ export default function AdminPortalModal({
   onLoadSampleMasterData,
   showToast
 }) {
-  const [adminTab, setAdminTab] = useState('registrations'); // 'registrations' | 'master-dump' | 'certificates'
+  const [adminTab, setAdminTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('ranbidge_admin_tab') || 'registrations';
+    } catch (e) {
+      return 'registrations';
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
 
   // Column Filters & Sort State
@@ -67,19 +87,931 @@ export default function AdminPortalModal({
   const [activePopover, setActivePopover] = useState(null); // 'id' | 'fullName' | 'college' | 'rollNumber' | 'passoutYear' | 'department' | 'workshopName' | 'workshopDate' | null
   const [popoverSearch, setPopoverSearch] = useState('');
 
-  // Colleges Grid Modal State
-  const [isCollegesModalOpen, setIsCollegesModalOpen] = useState(false);
+  // Selected College Details
   const [selectedCollegeName, setSelectedCollegeName] = useState(null);
   const [collegeSearchQuery, setCollegeSearchQuery] = useState('');
 
   // Users Directory Inspector Modal State
-  const [isUsersDirectoryOpen, setIsUsersDirectoryOpen] = useState(false);
+  const [isUsersDirectoryOpen, setIsUsersDirectoryOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem('ranbidge_users_dir_open') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
   const [userDirSearchQuery, setUserDirSearchQuery] = useState('');
   const [selectedCollegeFilter, setSelectedCollegeFilter] = useState('');
   const [selectedWorkshopFilter, setSelectedWorkshopFilter] = useState('');
 
+  // Persist Admin Tab and Users Directory Modal open state
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ranbidge_admin_tab', adminTab);
+    } catch (e) {}
+  }, [adminTab]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ranbidge_users_dir_open', isUsersDirectoryOpen ? 'true' : 'false');
+    } catch (e) {}
+  }, [isUsersDirectoryOpen]);
+
   const [selectedPreviewCert, setSelectedPreviewCert] = useState(null);
   const [selectedGeneratedCertRecord, setSelectedGeneratedCertRecord] = useState(null);
+
+  // File Explorer Custom Folders & Directory Drive State
+  const [customFolders, setCustomFolders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ranbidge_custom_folders');
+      return saved ? JSON.parse(saved) : [
+        { id: 'f-1', name: 'RANBIDGE Certificate Center' },
+        { id: 'f-2', name: 'Company Documents' },
+        { id: 'f-3', name: 'Company Posters' },
+        { id: 'f-4', name: 'IDE BootCamp Files' },
+        { id: 'f-5', name: 'Church project' },
+        { id: 'f-6', name: 'Demo Python Cource' },
+        { id: 'f-7', name: 'LMS Data' },
+        { id: 'f-8', name: 'RANBIDGE-Verification-Portal' }
+      ];
+    } catch (e) {
+      return [
+        { id: 'f-1', name: 'RANBIDGE Certificate Center' },
+        { id: 'f-2', name: 'Company Documents' }
+      ];
+    }
+  });
+
+  // Deleted Folders List State (persisted to localStorage)
+  const [deletedFolderNames, setDeletedFolderNames] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ranbidge_deleted_folders');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // Sync deleted folders to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ranbidge_deleted_folders', JSON.stringify(deletedFolderNames));
+    } catch (e) {}
+  }, [deletedFolderNames]);
+
+  // Folder Multi-Selection & Range Navigation State
+  const [selectedFolderIds, setSelectedFolderIds] = useState([]);
+  const [anchorFolderIndex, setAnchorFolderIndex] = useState(null);
+  const [currentFolderIndex, setCurrentFolderIndex] = useState(null);
+
+  // Student Records Selection State (for one-by-one or select-all batch actions)
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+
+  // Selected Student Detail Modal State
+  const [viewingStudentDetail, setViewingStudentDetail] = useState(null);
+
+  // Settings Popover State
+  const [isSettingsPopoverOpen, setIsSettingsPopoverOpen] = useState(false);
+
+  // Opened Dedicated Folder Page State
+  const [openedFolderPage, setOpenedFolderPage] = useState(null);
+  const [openedFolderTab, setOpenedFolderTab] = useState('records'); // 'records' | 'certificates'
+
+  // Download single certificate image helper
+  const downloadSingleCertificate = (rec) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 850;
+      const ctx = canvas.getContext('2d');
+
+      // Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 1200, 850);
+
+      // Outer Dark Border
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(20, 20, 1160, 810);
+
+      // Inner Gold Border
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(32, 32, 1136, 786);
+
+      // Header Title
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('RANBIDGE SERVICE PRIVATE LIMITED', 600, 110);
+
+      ctx.fillStyle = '#2563eb';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText('CERTIFICATE OF PARTICIPATION', 600, 160);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '18px sans-serif';
+      ctx.fillText('This is proudly presented to', 600, 220);
+
+      // Participant Name
+      ctx.fillStyle = '#1e1b4b';
+      ctx.font = 'bold 44px serif';
+      ctx.fillText(rec.fullName || 'Participant Name', 600, 290);
+
+      // Line below name
+      ctx.beginPath();
+      ctx.moveTo(350, 310);
+      ctx.lineTo(850, 310);
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Details Text
+      ctx.fillStyle = '#334155';
+      ctx.font = '20px sans-serif';
+      ctx.fillText(`Roll Number: ${rec.rollNumber || 'N/A'} | Department: ${rec.department || 'N/A'}`, 600, 360);
+      ctx.fillText(`College: ${rec.college || 'N/A'}`, 600, 400);
+
+      ctx.fillText('for successfully completing the technical workshop on', 600, 460);
+
+      // Workshop Name
+      ctx.fillStyle = '#2563eb';
+      ctx.font = 'bold 30px sans-serif';
+      ctx.fillText(rec.workshopName || 'Specialized Technical Workshop', 600, 520);
+
+      // Date & ID
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px sans-serif';
+      ctx.fillText(`Date: ${rec.workshopDate || new Date().toLocaleDateString()} | Verification ID: ${rec.id || 'REG-RANBIDGE'}`, 600, 570);
+
+      // Footer / Seal & Signature
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('RANBIDGE VERIFIED', 100, 720);
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('Authorized Signatory', 100, 745);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#16a34a';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('OFFICIAL CERTIFICATE', 1100, 720);
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('Verified via RANBIDGE Portal', 1100, 745);
+
+      // Convert to image link and download
+      const link = document.createElement('a');
+      link.download = `${(rec.fullName || 'Student').replace(/\s+/g, '_')}_${rec.rollNumber || 'Cert'}_RANBIDGE_Certificate.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error('Error generating certificate image for download:', err);
+    }
+  };
+
+  // Batch Certificate Download
+  const handleBulkDownloadCertificates = () => {
+    if (selectedStudentIds.length === 0) {
+      if (showToast) showToast('⚠️ Please select at least one student record first!');
+      return;
+    }
+
+    const allRecordsMap = new Map();
+    records.forEach(r => allRecordsMap.set(r.id, r));
+
+    const targetList = selectedStudentIds.map(id => allRecordsMap.get(id)).filter(Boolean);
+
+    if (targetList.length === 0) {
+      if (showToast) showToast('No valid records found for selected IDs');
+      return;
+    }
+
+    targetList.forEach((rec, idx) => {
+      setTimeout(() => {
+        downloadSingleCertificate(rec);
+      }, idx * 350);
+    });
+
+    if (showToast) {
+      showToast(`Downloading ${targetList.length} student certificate(s)...`);
+    }
+  };
+
+  // Batch Verify & Send Certificates to User Portal
+  const handleBulkApproveAndSend = async () => {
+    if (selectedStudentIds.length === 0) {
+      if (showToast) showToast('⚠️ Please select at least one student record first!');
+      return;
+    }
+
+    let count = 0;
+    for (const id of selectedStudentIds) {
+      if (onVerifyRecord) {
+        await onVerifyRecord(id);
+        count++;
+      }
+    }
+
+    if (showToast) {
+      showToast(`✅ Approved & Sent ${count} certificate(s) to User Download Portal!`);
+    }
+  };
+
+  // Batch Reject / Remove Selected Student Records
+  const handleBulkReject = async () => {
+    if (selectedStudentIds.length === 0) {
+      if (showToast) showToast('⚠️ Please select at least one student record first!');
+      return;
+    }
+
+    let count = 0;
+    for (const id of selectedStudentIds) {
+      if (onDeleteRecord) {
+        await onDeleteRecord(id);
+        count++;
+      }
+    }
+
+    setSelectedStudentIds([]);
+    if (showToast) {
+      showToast(`❌ Rejected & Removed ${count} selected student record(s)!`);
+    }
+  };
+
+  const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+
+  // Create Workshop Form Modal State
+  const [isWorkshopModalOpen, setIsWorkshopModalOpen] = useState(false);
+  const [workshopForm, setWorkshopForm] = useState({
+    title: '',
+    college: '',
+    category: 'Workshop',
+    department: 'CSE',
+    date: new Date().toISOString().split('T')[0],
+    duration: '1 Day (8 Hours)',
+    trainer: 'RANBIDGE Senior Engineer',
+    description: ''
+  });
+
+  // Add Registered Student Modal State
+  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
+  const [addStudentForm, setAddStudentForm] = useState({
+    fullName: '',
+    rollNumber: '',
+    college: '',
+    department: 'Computer Science Engineering',
+    passoutYear: '2026',
+    workshopName: '',
+    isVerified: true
+  });
+
+  // Import Verified Students Bulk Modal State
+  const [isImportVerifiedModalOpen, setIsImportVerifiedModalOpen] = useState(false);
+  const [importVerifiedText, setImportVerifiedText] = useState('');
+
+  // Added Colleges Directory Modal State
+  const [isCollegesDirectoryModalOpen, setIsCollegesDirectoryModalOpen] = useState(false);
+  const [collegeSearchInput, setCollegeSearchInput] = useState('');
+
+  // Folder Clipboard (Cut / Copy / Paste) State
+  const [folderClipboard, setFolderClipboard] = useState({
+    folders: [], // array of folder objects to cut/copy
+    mode: null // 'cut' | 'copy' | null
+  });
+
+  // Right-Click Context Menu & Rename State
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, folder: null });
+  const [renameModal, setRenameModal] = useState({ isOpen: false, folder: null, newName: '' });
+
+  // Dynamic Dashboard Folders List (Custom Admin Folders + Colleges + Workshops - Filtered by Deleted Folders)
+  const allFoldersList = useMemo(() => {
+    const deletedSet = new Set(deletedFolderNames.map(n => n.toLowerCase()));
+
+    const collegeMap = {};
+    records.forEach(r => {
+      const col = r.college ? r.college.trim() : 'General';
+      if (!deletedSet.has(col.toLowerCase())) {
+        collegeMap[col] = (collegeMap[col] || 0) + 1;
+      }
+    });
+
+    const collegeFolders = Object.keys(collegeMap).map(colName => ({
+      id: `col-${colName}`,
+      name: colName,
+      type: 'college',
+      count: collegeMap[colName]
+    }));
+
+    const workshopMap = {};
+    records.forEach(r => {
+      const ws = r.workshopName ? r.workshopName.trim() : null;
+      if (ws && !deletedSet.has(ws.toLowerCase())) {
+        workshopMap[ws] = (workshopMap[ws] || 0) + 1;
+      }
+    });
+
+    const workshopFolders = Object.keys(workshopMap).map(wsName => ({
+      id: `ws-${wsName}`,
+      name: wsName,
+      type: 'workshop',
+      count: workshopMap[wsName]
+    }));
+
+    // Only display root level custom folders in Root Dashboard grid
+    const userFolders = customFolders
+      .filter(f => !f.parentId && !deletedSet.has(f.name.toLowerCase()) && !deletedSet.has(f.id.toLowerCase()))
+      .map(f => ({
+        id: f.id,
+        name: f.name,
+        type: 'custom',
+        count: records.filter(r => r.college === f.name || r.workshopName === f.name).length || 0
+      }));
+
+    const combined = [...userFolders];
+    collegeFolders.forEach(cf => {
+      if (!combined.some(item => item.name.toLowerCase() === cf.name.toLowerCase())) {
+        combined.push(cf);
+      }
+    });
+    workshopFolders.forEach(wf => {
+      if (!combined.some(item => item.name.toLowerCase() === wf.name.toLowerCase())) {
+        combined.push(wf);
+      }
+    });
+
+    return combined.filter(item => !deletedSet.has(item.name.toLowerCase()) && !deletedSet.has(item.id.toLowerCase()));
+  }, [records, customFolders, deletedFolderNames]);
+
+  const handleOpenAddStudentModal = (targetFolder = null) => {
+    const parentFolder = targetFolder || openedFolderPage || (contextMenu.folder ? contextMenu.folder : null);
+    const folderName = parentFolder ? parentFolder.name : (selectedCollegeName || '');
+    const isCollegeType = parentFolder && parentFolder.type === 'college';
+    const isWorkshopType = parentFolder && parentFolder.type === 'workshop';
+
+    setAddStudentForm({
+      fullName: '',
+      rollNumber: '',
+      college: isCollegeType ? folderName : (folderName || 'RANBIDGE Partnered Institution'),
+      department: 'Computer Science Engineering',
+      passoutYear: '2026',
+      workshopName: isWorkshopType ? folderName : (folderName || 'RANBIDGE Verification Workshop'),
+      isVerified: true
+    });
+    setIsAddStudentModalOpen(true);
+    setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+  };
+
+  const handleSaveAddStudent = async (e) => {
+    e.preventDefault();
+    if (!addStudentForm.fullName.trim() || !addStudentForm.rollNumber.trim()) {
+      if (showToast) showToast('⚠️ Student Full Name and Roll Number are required!');
+      return;
+    }
+
+    const newRecord = {
+      id: 'REG-' + Math.floor(100000 + Math.random() * 900000),
+      fullName: addStudentForm.fullName.trim(),
+      rollNumber: addStudentForm.rollNumber.trim().toUpperCase(),
+      college: addStudentForm.college.trim() || 'RANBIDGE Partnered Institution',
+      department: addStudentForm.department.trim() || 'CSE',
+      passoutYear: addStudentForm.passoutYear.trim() || '2026',
+      workshopName: addStudentForm.workshopName.trim() || 'RANBIDGE Verification',
+      verificationStatus: addStudentForm.isVerified ? 'verified' : 'pending',
+      verifiedAt: addStudentForm.isVerified ? new Date().toLocaleString() : null,
+      submittedAt: new Date().toLocaleString(),
+      timestamp: Date.now()
+    };
+
+    if (onAddRecord) {
+      await onAddRecord(newRecord);
+    }
+
+    if (addStudentForm.isVerified && onVerifyRecord) {
+      await onVerifyRecord(newRecord.id);
+    }
+
+    setIsAddStudentModalOpen(false);
+    if (showToast) showToast(`✅ Added registered student data for ${newRecord.fullName}!`);
+  };
+
+  const handleOpenImportVerifiedModal = (targetFolder = null) => {
+    const parentFolder = targetFolder || openedFolderPage || (contextMenu.folder ? contextMenu.folder : null);
+    const folderName = parentFolder ? parentFolder.name : (selectedCollegeName || 'RANBIDGE Workshop');
+    setImportVerifiedText(`23471A1201, Aarav Sharma, ${folderName}, CSE, 2026\n23471A1202, Priya Ananth, ${folderName}, ECE, 2027`);
+    setIsImportVerifiedModalOpen(true);
+    setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+  };
+
+  const handleConfirmImportVerified = async (e) => {
+    e.preventDefault();
+    if (!importVerifiedText.trim()) return;
+
+    const lines = importVerifiedText.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+
+    const parentFolder = openedFolderPage || (contextMenu.folder ? contextMenu.folder : null);
+    const defaultName = parentFolder ? parentFolder.name : 'RANBIDGE Institution';
+
+    let count = 0;
+    const newMasterEntries = [];
+    const newCerts = [];
+
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx];
+      const parts = line.split(',').map(p => p.trim());
+      const rollNumber = parts[0] ? parts[0].toUpperCase() : `ROLL-${Date.now()}-${idx}`;
+      const fullName = parts[1] || `Verified Student ${idx + 1}`;
+      const college = parts[2] || defaultName;
+      const department = parts[3] || 'CSE';
+      const passoutYear = parts[4] || '2026';
+      const workshopName = parts[5] || defaultName;
+
+      const newRecord = {
+        id: 'REG-' + Math.floor(100000 + Math.random() * 900000),
+        fullName,
+        rollNumber,
+        college,
+        department,
+        passoutYear,
+        workshopName,
+        verificationStatus: 'verified',
+        verifiedAt: new Date().toLocaleString(),
+        submittedAt: new Date().toLocaleString(),
+        timestamp: Date.now() + idx
+      };
+
+      if (onAddRecord) {
+        await onAddRecord(newRecord);
+      }
+
+      newMasterEntries.push({
+        id: 'DUMP-' + rollNumber,
+        rollNumber,
+        fullName,
+        college,
+        department,
+        passoutYear,
+        workshopName,
+        addedAt: new Date().toLocaleString()
+      });
+
+      newCerts.push({
+        id: 'CERT-' + rollNumber,
+        fileName: `${fullName}_Certificate.pdf`,
+        rollNumber,
+        studentName: fullName,
+        college,
+        workshopName,
+        issueDate: new Date().toISOString().split('T')[0],
+        downloadUrl: '#',
+        fileSize: '245 KB',
+        verificationStatus: 'verified',
+        uploadedAt: new Date().toLocaleString()
+      });
+
+      count++;
+    }
+
+    if (onSaveMasterDump && newMasterEntries.length > 0) {
+      await onSaveMasterDump(newMasterEntries);
+    }
+
+    if (onSaveCertificates && newCerts.length > 0) {
+      await onSaveCertificates(newCerts);
+    }
+
+    setIsImportVerifiedModalOpen(false);
+    if (showToast) showToast(`🎉 Successfully imported and verified ${count} student record(s)!`);
+  };
+
+  const handleOpenCreateWorkshop = (targetFolder = null) => {
+    const parentFolder = targetFolder || openedFolderPage || (contextMenu.folder ? contextMenu.folder : null);
+    setWorkshopForm({
+      title: '',
+      college: parentFolder ? parentFolder.name : (selectedCollegeName || ''),
+      category: 'Workshop',
+      department: 'CSE',
+      date: new Date().toISOString().split('T')[0],
+      duration: '1 Day (8 Hours)',
+      trainer: 'RANBIDGE Senior Engineer',
+      description: ''
+    });
+    setIsWorkshopModalOpen(true);
+    setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+  };
+
+  const handleSaveWorkshop = (e) => {
+    e.preventDefault();
+    if (!workshopForm.title.trim()) return;
+
+    const workshopName = workshopForm.title.trim();
+    const parentFolder = openedFolderPage || (contextMenu.folder ? contextMenu.folder : null);
+    
+    const folder = {
+      id: 'ws-' + Date.now(),
+      name: workshopName,
+      type: 'workshop',
+      parentId: parentFolder ? parentFolder.id : null,
+      parentName: parentFolder ? parentFolder.name : null,
+      details: { ...workshopForm },
+      createdAt: new Date().toLocaleString()
+    };
+
+    setDeletedFolderNames(prev => prev.filter(n => n.toLowerCase() !== workshopName.toLowerCase() && n.toLowerCase() !== folder.id.toLowerCase()));
+    setCustomFolders(prev => [...prev, folder]);
+    setIsWorkshopModalOpen(false);
+    const targetLoc = parentFolder ? `folder "${parentFolder.name}"` : 'Root Dashboard';
+    if (showToast) showToast(`🛠️ Created workshop "${workshopName}" inside ${targetLoc}!`);
+  };
+
+  const handleCutFolders = (targetFolders) => {
+    const items = Array.isArray(targetFolders) ? targetFolders : (targetFolders ? [targetFolders] : []);
+    if (items.length === 0) return;
+    setFolderClipboard({ folders: items, mode: 'cut' });
+    setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+    if (showToast) showToast(`✂️ Cut ${items.length} folder(s). Go to destination and click Paste!`);
+  };
+
+  const handleCopyFolders = (targetFolders) => {
+    const items = Array.isArray(targetFolders) ? targetFolders : (targetFolders ? [targetFolders] : []);
+    if (items.length === 0) return;
+    setFolderClipboard({ folders: items, mode: 'copy' });
+    setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+    if (showToast) showToast(`📋 Copied ${items.length} folder(s). Go to destination and click Paste!`);
+  };
+
+  const handlePasteFolders = (destFolder = openedFolderPage) => {
+    if (!folderClipboard.mode || folderClipboard.folders.length === 0) {
+      if (showToast) showToast(`⚠️ Clipboard is empty. Cut or Copy a folder first!`);
+      return;
+    }
+
+    const targetParentId = destFolder ? destFolder.id : null;
+    const targetParentName = destFolder ? destFolder.name : null;
+    const destName = destFolder ? destFolder.name : 'Root Dashboard';
+
+    if (folderClipboard.mode === 'cut') {
+      const cutIds = folderClipboard.folders.map(f => f.id);
+      const cutNames = folderClipboard.folders.map(f => f.name.toLowerCase());
+
+      // Update parentId and parentName for all cut folders
+      setCustomFolders(prev => prev.map(f => {
+        if (cutIds.includes(f.id) || cutNames.includes(f.name.toLowerCase())) {
+          return {
+            ...f,
+            parentId: targetParentId,
+            parentName: targetParentName
+          };
+        }
+        return f;
+      }));
+
+      // Ensure cut folders are restored if in deleted set
+      setDeletedFolderNames(prev => prev.filter(n => !cutNames.includes(n.toLowerCase())));
+
+      setFolderClipboard({ folders: [], mode: null });
+      setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+      if (showToast) showToast(`📥 Moved ${cutIds.length} folder(s) to ${destName}!`);
+    } else if (folderClipboard.mode === 'copy') {
+      const newFolderCopies = folderClipboard.folders.map((f, idx) => ({
+        ...f,
+        id: 'folder-' + Date.now() + '-' + idx,
+        name: f.name + (f.parentId === targetParentId ? ' - Copy' : ''),
+        parentId: targetParentId,
+        parentName: targetParentName,
+        createdAt: new Date().toLocaleString()
+      }));
+
+      setCustomFolders(prev => [...prev, ...newFolderCopies]);
+      setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+      if (showToast) showToast(`📋 Copied ${newFolderCopies.length} folder(s) into ${destName}!`);
+    }
+  };
+
+  // Keyboard Shortcuts for Cut (Ctrl+X), Copy (Ctrl+C), Paste (Ctrl+V)
+  useEffect(() => {
+    const handleClipboardKeyDown = (e) => {
+      const tagName = e.target.tagName ? e.target.tagName.toLowerCase() : '';
+      if (tagName === 'input' || tagName === 'textarea' || e.target.isContentEditable) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modifier = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modifier && e.key.toLowerCase() === 'x') {
+        if (selectedFolderIds.length > 0) {
+          e.preventDefault();
+          const targetFolders = allFoldersList.filter(f => selectedFolderIds.includes(f.id));
+          handleCutFolders(targetFolders);
+        } else if (contextMenu.folder) {
+          e.preventDefault();
+          handleCutFolders([contextMenu.folder]);
+        }
+      } else if (modifier && e.key.toLowerCase() === 'c') {
+        if (selectedFolderIds.length > 0) {
+          e.preventDefault();
+          const targetFolders = allFoldersList.filter(f => selectedFolderIds.includes(f.id));
+          handleCopyFolders(targetFolders);
+        } else if (contextMenu.folder) {
+          e.preventDefault();
+          handleCopyFolders([contextMenu.folder]);
+        }
+      } else if (modifier && e.key.toLowerCase() === 'v') {
+        if (folderClipboard.mode && folderClipboard.folders.length > 0) {
+          e.preventDefault();
+          const dest = contextMenu.folder || openedFolderPage;
+          handlePasteFolders(dest);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleClipboardKeyDown);
+    return () => window.removeEventListener('keydown', handleClipboardKeyDown);
+  }, [selectedFolderIds, allFoldersList, folderClipboard, contextMenu.folder, openedFolderPage]);
+
+  // Right Click Context Menu close listener
+  useEffect(() => {
+    const handleCloseMenu = () => {
+      if (contextMenu.visible) {
+        setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+      }
+    };
+    window.addEventListener('click', handleCloseMenu);
+    window.addEventListener('scroll', handleCloseMenu);
+    return () => {
+      window.removeEventListener('click', handleCloseMenu);
+      window.removeEventListener('scroll', handleCloseMenu);
+    };
+  }, [contextMenu.visible]);
+
+  const handleFolderContextMenu = (e, folder) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      folder: folder
+    });
+  };
+
+  const handleOpenRenameModal = (folder) => {
+    setRenameModal({
+      isOpen: true,
+      folder: folder,
+      newName: folder.name
+    });
+    setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+  };
+
+  const handleConfirmRename = (e) => {
+    e.preventDefault();
+    if (!renameModal.folder || !renameModal.newName.trim()) return;
+
+    const targetFolder = renameModal.folder;
+    const updatedName = renameModal.newName.trim();
+
+    setCustomFolders(prev => prev.map(f => f.id === targetFolder.id ? { ...f, name: updatedName } : f));
+    setRenameModal({ isOpen: false, folder: null, newName: '' });
+    if (showToast) showToast(`✏️ Folder renamed to "${updatedName}"!`);
+  };
+
+  const handleDeleteFolder = (folder) => {
+    if (window.confirm(`Are you sure you want to delete folder "${folder.name}"?`)) {
+      setCustomFolders(prev => prev.filter(f => f.id !== folder.id && f.name !== folder.name));
+      setDeletedFolderNames(prev => Array.from(new Set([...prev, folder.name.toLowerCase(), folder.id.toLowerCase()])));
+      setSelectedFolderIds(prev => prev.filter(id => id !== folder.id));
+      setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+      if (showToast) showToast(`🗑️ Deleted folder "${folder.name}"`);
+    }
+  };
+
+  // Bulk Delete Function for Keyboard Delete Key or Action Button
+  const handleDeleteSelectedFolders = () => {
+    if (selectedFolderIds.length === 0) return;
+
+    const targetFolders = allFoldersList.filter(f => selectedFolderIds.includes(f.id));
+    const targetNames = targetFolders.map(f => f.name);
+    const targetKeys = targetFolders.flatMap(f => [f.id.toLowerCase(), f.name.toLowerCase()]);
+
+    const confirmMsg = targetFolders.length === 1
+      ? `Are you sure you want to delete folder "${targetNames[0]}"?`
+      : `Are you sure you want to delete these ${targetFolders.length} selected folders?\n\n` + targetNames.slice(0, 5).map(n => `- ${n}`).join('\n') + (targetNames.length > 5 ? `\n...and ${targetNames.length - 5} more` : '');
+
+    if (window.confirm(confirmMsg)) {
+      setCustomFolders(prev => prev.filter(f => !selectedFolderIds.includes(f.id) && !targetNames.includes(f.name)));
+      setDeletedFolderNames(prev => Array.from(new Set([...prev, ...targetKeys])));
+      setSelectedFolderIds([]);
+      setAnchorFolderIndex(null);
+      setCurrentFolderIndex(null);
+      setColumnFilters(prev => ({ ...prev, college: [], workshopName: [] }));
+      setSearchQuery('');
+      if (showToast) showToast(`🗑️ Deleted ${targetFolders.length} folder(s)`);
+    }
+  };
+
+  // Persist Custom Folders
+  useEffect(() => {
+    try {
+      localStorage.setItem('ranbidge_custom_folders', JSON.stringify(customFolders));
+    } catch (e) {}
+  }, [customFolders]);
+
+  const handleCreateFolder = (e) => {
+    e.preventDefault();
+    if (!newFolderName.trim()) return;
+    const folderName = newFolderName.trim();
+    const folder = {
+      id: 'folder-' + Date.now(),
+      name: folderName,
+      parentId: openedFolderPage ? openedFolderPage.id : null,
+      parentName: openedFolderPage ? openedFolderPage.name : null,
+      createdAt: new Date().toLocaleString()
+    };
+    setDeletedFolderNames(prev => prev.filter(n => n.toLowerCase() !== folderName.toLowerCase() && n.toLowerCase() !== folder.id.toLowerCase()));
+    setCustomFolders(prev => [...prev, folder]);
+    setNewFolderName('');
+    setIsAddFolderModalOpen(false);
+    const targetLoc = openedFolderPage ? `folder "${openedFolderPage.name}"` : 'Root Dashboard';
+    if (showToast) showToast(`📁 Created folder "${folder.name}" inside ${targetLoc}!`);
+  };
+
+  // Filter records & certificates for Opened Dedicated Folder Page
+  const openedFolderRecords = useMemo(() => {
+    if (!openedFolderPage) return [];
+    const key = openedFolderPage.name.toLowerCase().trim();
+    return records.filter(r => 
+      (r.college && r.college.toLowerCase().trim() === key) ||
+      (r.workshopName && r.workshopName.toLowerCase().trim() === key) ||
+      (r.department && r.department.toLowerCase().trim() === key) ||
+      (r.fullName && r.fullName.toLowerCase().includes(key)) ||
+      (r.rollNumber && r.rollNumber.toLowerCase().includes(key))
+    );
+  }, [records, openedFolderPage]);
+
+  const openedFolderCertificates = useMemo(() => {
+    if (!openedFolderPage) return [];
+    const key = openedFolderPage.name.toLowerCase().trim();
+    return certificates.filter(c => 
+      (c.college && c.college.toLowerCase().trim() === key) ||
+      (c.workshopName && c.workshopName.toLowerCase().trim() === key) ||
+      (c.studentName && c.studentName.toLowerCase().includes(key)) ||
+      (c.fileName && c.fileName.toLowerCase().includes(key)) ||
+      (c.rollNumber && c.rollNumber.toLowerCase().includes(key))
+    );
+  }, [certificates, openedFolderPage]);
+
+  // Sub-Folders located inside the currently opened folder
+  const openedFolderSubFolders = useMemo(() => {
+    if (!openedFolderPage) return [];
+    const deletedSet = new Set(deletedFolderNames.map(n => n.toLowerCase()));
+    const currentId = String(openedFolderPage.id || '').toLowerCase().trim();
+    const currentName = String(openedFolderPage.name || '').toLowerCase().trim();
+
+    return customFolders.filter(f => {
+      const fId = String(f.id || '').toLowerCase().trim();
+      const fName = String(f.name || '').toLowerCase().trim();
+      const fParentId = String(f.parentId || '').toLowerCase().trim();
+      const fParentName = String(f.parentName || '').toLowerCase().trim();
+
+      if (deletedSet.has(fName) || deletedSet.has(fId)) return false;
+
+      const isChild = (
+        (fParentId && (fParentId === currentId || fParentId === `col-${currentName}` || fParentId === `ws-${currentName}`)) ||
+        (fParentName && fParentName === currentName)
+      );
+
+      return isChild;
+    });
+  }, [openedFolderPage, customFolders, deletedFolderNames]);
+
+  // Apply Filter to main table based on selected folder(s)
+  const applyFolderFilterForSelection = (folders) => {
+    if (!folders || folders.length === 0) {
+      setColumnFilters(prev => ({ ...prev, college: [], workshopName: [] }));
+      setSearchQuery('');
+      return;
+    }
+    const colleges = folders.filter(f => f.type === 'college').map(f => f.name);
+    const workshops = folders.filter(f => f.type === 'workshop').map(f => f.name);
+    const customNames = folders.filter(f => f.type === 'custom').map(f => f.name);
+
+    setColumnFilters(prev => ({
+      ...prev,
+      college: colleges,
+      workshopName: workshops
+    }));
+
+    if (customNames.length > 0) {
+      setSearchQuery(customNames.join(' '));
+    } else {
+      setSearchQuery('');
+    }
+  };
+
+  // Folder Click Handler supporting Shift+Click range select
+  const handleFolderClick = (e, folder, index) => {
+    if (e.shiftKey && anchorFolderIndex !== null) {
+      const start = Math.min(anchorFolderIndex, index);
+      const end = Math.max(anchorFolderIndex, index);
+      const range = allFoldersList.slice(start, end + 1);
+      const ids = range.map(f => f.id);
+      setSelectedFolderIds(ids);
+      setCurrentFolderIndex(index);
+      applyFolderFilterForSelection(range);
+    } else if (e.ctrlKey || e.metaKey) {
+      const exists = selectedFolderIds.includes(folder.id);
+      const newIds = exists ? selectedFolderIds.filter(id => id !== folder.id) : [...selectedFolderIds, folder.id];
+      setSelectedFolderIds(newIds);
+      setAnchorFolderIndex(index);
+      setCurrentFolderIndex(index);
+      const selectedFolders = allFoldersList.filter(f => newIds.includes(f.id));
+      applyFolderFilterForSelection(selectedFolders);
+    } else {
+      const isAlreadySingle = selectedFolderIds.length === 1 && selectedFolderIds[0] === folder.id;
+      if (isAlreadySingle) {
+        setSelectedFolderIds([]);
+        setAnchorFolderIndex(null);
+        setCurrentFolderIndex(null);
+        setColumnFilters(prev => ({ ...prev, college: [], workshopName: [] }));
+        setSearchQuery('');
+      } else {
+        setSelectedFolderIds([folder.id]);
+        setAnchorFolderIndex(index);
+        setCurrentFolderIndex(index);
+        applyFolderFilterForSelection([folder]);
+      }
+    }
+  };
+
+  // Keyboard Shortcuts Listener for Shift + Right/Left Arrow Selection and Delete key Bulk Delete
+  useEffect(() => {
+    if (!isOpen || adminTab !== 'registrations') return;
+
+    const handleKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+      if (isInput || isAddFolderModalOpen || renameModal.isOpen) return;
+
+      // 1. Delete or Backspace Key -> Delete selected folders
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedFolderIds.length > 0) {
+          e.preventDefault();
+          handleDeleteSelectedFolders();
+        }
+        return;
+      }
+
+      // 2. Shift + Right / Left / Down / Up Arrow -> Multi-select folder range
+      if (e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        if (allFoldersList.length === 0) return;
+        e.preventDefault();
+
+        const baseAnchor = anchorFolderIndex !== null ? anchorFolderIndex : 0;
+        const currentIdx = currentFolderIndex !== null ? currentFolderIndex : baseAnchor;
+        let nextIdx = currentIdx;
+
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          nextIdx = Math.min(allFoldersList.length - 1, currentIdx + 1);
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          nextIdx = Math.max(0, currentIdx - 1);
+        }
+
+        const start = Math.min(baseAnchor, nextIdx);
+        const end = Math.max(baseAnchor, nextIdx);
+        const rangeFolders = allFoldersList.slice(start, end + 1);
+        const rangeIds = rangeFolders.map(f => f.id);
+
+        setAnchorFolderIndex(baseAnchor);
+        setCurrentFolderIndex(nextIdx);
+        setSelectedFolderIds(rangeIds);
+        applyFolderFilterForSelection(rangeFolders);
+        return;
+      }
+
+      // 3. ArrowRight / ArrowLeft Navigation without Shift
+      if (!e.shiftKey && !e.ctrlKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        if (allFoldersList.length === 0) return;
+        e.preventDefault();
+
+        const currentIdx = currentFolderIndex !== null ? currentFolderIndex : 0;
+        const nextIdx = e.key === 'ArrowRight' ? Math.min(allFoldersList.length - 1, currentIdx + 1) : Math.max(0, currentIdx - 1);
+        const targetFolder = allFoldersList[nextIdx];
+        if (targetFolder) {
+          setAnchorFolderIndex(nextIdx);
+          setCurrentFolderIndex(nextIdx);
+          setSelectedFolderIds([targetFolder.id]);
+          applyFolderFilterForSelection([targetFolder]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, adminTab, selectedFolderIds, anchorFolderIndex, currentFolderIndex, allFoldersList, isAddFolderModalOpen, renameModal.isOpen]);
 
   // Keyboard Escape key handler to close modals in priority order
   useEffect(() => {
@@ -91,12 +1023,12 @@ export default function AdminPortalModal({
           setSelectedGeneratedCertRecord(null);
         } else if (selectedPreviewCert) {
           setSelectedPreviewCert(null);
+        } else if (openedFolderPage) {
+          setOpenedFolderPage(null);
         } else if (isUsersDirectoryOpen) {
           setIsUsersDirectoryOpen(false);
         } else if (selectedCollegeName) {
           setSelectedCollegeName(null);
-        } else if (isCollegesModalOpen) {
-          setIsCollegesModalOpen(false);
         } else {
           onClose();
         }
@@ -105,7 +1037,7 @@ export default function AdminPortalModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isCollegesModalOpen, selectedCollegeName, selectedPreviewCert, selectedGeneratedCertRecord, isUsersDirectoryOpen, onClose]);
+  }, [isOpen, selectedCollegeName, selectedPreviewCert, selectedGeneratedCertRecord, isUsersDirectoryOpen, openedFolderPage, onClose]);
 
   // College breakdown analysis from both records and dumped certificates
   const collegeBreakdown = useMemo(() => {
@@ -313,10 +1245,109 @@ export default function AdminPortalModal({
     );
   }, [collegeBreakdown, collegeSearchQuery]);
 
+  const [selectedActivityFilter, setSelectedActivityFilter] = useState('all');
+
   const activeCollege = useMemo(() => {
     if (!selectedCollegeName) return null;
     return collegeBreakdown.find(c => c.name.toLowerCase() === selectedCollegeName.toLowerCase());
   }, [collegeBreakdown, selectedCollegeName]);
+
+  const getActivityInfo = (activityName) => {
+    const name = (activityName || 'General Workshop').trim();
+    const lower = name.toLowerCase();
+    if (lower.includes('hackathon')) {
+      return { name, type: 'Hackathon', badgeColor: '#7c3aed', badgeBg: '#f3e8ff', icon: '🚀' };
+    } else if (lower.includes('bootcamp')) {
+      return { name, type: 'Bootcamp', badgeColor: '#0284c7', badgeBg: '#e0f2fe', icon: '💻' };
+    } else if (lower.includes('seminar') || lower.includes('symposium') || lower.includes('webinar')) {
+      return { name, type: 'Seminar', badgeColor: '#d97706', badgeBg: '#fef3c7', icon: '🎙️' };
+    } else if (lower.includes('internship') || lower.includes('training')) {
+      return { name, type: 'Training', badgeColor: '#059669', badgeBg: '#d1fae5', icon: '💼' };
+    } else if (lower.includes('project') || lower.includes('challenge')) {
+      return { name, type: 'Challenge', badgeColor: '#dc2626', badgeBg: '#fee2e2', icon: '⚡' };
+    } else {
+      return { name, type: 'Workshop', badgeColor: '#2563eb', badgeBg: '#dbeafe', icon: '🛠️' };
+    }
+  };
+
+  const collegeActivities = useMemo(() => {
+    if (!activeCollege) return [];
+    const map = {};
+
+    activeCollege.records.forEach(r => {
+      const actName = (r.workshopName && r.workshopName.trim()) ? r.workshopName.trim() : 'General Workshop';
+      const key = actName.toLowerCase();
+      if (!map[key]) {
+        const info = getActivityInfo(actName);
+        map[key] = {
+          name: actName,
+          type: info.type,
+          icon: info.icon,
+          badgeColor: info.badgeColor,
+          badgeBg: info.badgeBg,
+          recordsCount: 0,
+          certsCount: 0,
+          dates: new Set(),
+          departments: new Set()
+        };
+      }
+      map[key].recordsCount += 1;
+      if (r.workshopDate) map[key].dates.add(r.workshopDate);
+      if (r.department) map[key].departments.add(r.department);
+    });
+
+    activeCollege.certificates.forEach(c => {
+      const actName = (c.workshopName || c.title || 'Certificate Program').trim();
+      const key = actName.toLowerCase();
+      if (!map[key]) {
+        const info = getActivityInfo(actName);
+        map[key] = {
+          name: actName,
+          type: info.type,
+          icon: info.icon,
+          badgeColor: info.badgeColor,
+          badgeBg: info.badgeBg,
+          recordsCount: 0,
+          certsCount: 0,
+          dates: new Set(),
+          departments: new Set()
+        };
+      }
+      map[key].certsCount += 1;
+    });
+
+    return Object.values(map);
+  }, [activeCollege]);
+
+  const filteredCertificatesForCollege = useMemo(() => {
+    if (!activeCollege) return [];
+    return activeCollege.certificates.filter(cert => {
+      const actName = (cert.workshopName || cert.title || 'Certificate Program').trim();
+      const matchesAct = selectedActivityFilter === 'all' || actName.toLowerCase() === selectedActivityFilter.toLowerCase();
+      const q = collegeSearchQuery.toLowerCase().trim();
+      const matchesQuery = !q || (
+        (cert.fileName && cert.fileName.toLowerCase().includes(q)) ||
+        (cert.studentName && cert.studentName.toLowerCase().includes(q)) ||
+        (cert.rollNumber && cert.rollNumber.toLowerCase().includes(q))
+      );
+      return matchesAct && matchesQuery;
+    });
+  }, [activeCollege, selectedActivityFilter, collegeSearchQuery]);
+
+  const filteredRecordsForCollege = useMemo(() => {
+    if (!activeCollege) return [];
+    return activeCollege.records.filter(rec => {
+      const actName = (rec.workshopName && rec.workshopName.trim()) ? rec.workshopName.trim() : 'General Workshop';
+      const matchesAct = selectedActivityFilter === 'all' || actName.toLowerCase() === selectedActivityFilter.toLowerCase();
+      const q = collegeSearchQuery.toLowerCase().trim();
+      const matchesQuery = !q || (
+        (rec.fullName && rec.fullName.toLowerCase().includes(q)) ||
+        (rec.rollNumber && rec.rollNumber.toLowerCase().includes(q)) ||
+        (rec.department && rec.department.toLowerCase().includes(q))
+      );
+      return matchesAct && matchesQuery;
+    });
+  }, [activeCollege, selectedActivityFilter, collegeSearchQuery]);
 
   const handleDownloadCert = (cert) => {
     const link = document.createElement('a');
@@ -514,31 +1545,92 @@ export default function AdminPortalModal({
 
   return (
     <>
-      <div className="admin-modal-overlay" onClick={onClose}>
-        <div className="admin-modal-container" onClick={(e) => e.stopPropagation()}>
+      <div className="admin-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1200, padding: 0 }} onClick={onClose}>
+        <div className="admin-modal-container" style={{ maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1.75rem 2rem', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
           
           {/* Admin Modal Header */}
-          <div className="admin-header">
+          <div className="admin-header" style={{ position: 'relative' }}>
             <div className="admin-header-title">
-              <div className="admin-header-row">
-                <div className="admin-badge">
-                  <Shield size={14} /> Secret Admin Portal
-                </div>
-                <button
-                  type="button"
-                  className="admin-header-colleges-btn"
-                  onClick={() => setIsCollegesModalOpen(true)}
-                  title="Open Colleges Grid Directory"
-                >
-                  <Building size={13} /> Colleges ({stats.collegesCount})
-                </button>
+              <div className="admin-badge">
+                <Shield size={14} /> Secret Admin Portal
               </div>
               <h2>RANBIDGE Verification Dashboard</h2>
               <p>Manage registrations, inspect user profiles, and dump certificate files for user downloads.</p>
             </div>
-            <button className="btn-icon-close" onClick={onClose} title="Close Admin Portal (Esc)">
-              <X size={20} />
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
+              {/* Settings Icon Button (Left side of Close icon) */}
+              <button
+                type="button"
+                className="btn-icon-close"
+                onClick={() => setIsSettingsPopoverOpen(prev => !prev)}
+                title="Portal Settings & Restore Deleted Folders"
+                style={{
+                  background: isSettingsPopoverOpen ? 'var(--primary-light)' : 'transparent',
+                  color: isSettingsPopoverOpen ? 'var(--primary)' : 'inherit'
+                }}
+              >
+                <Settings size={20} />
+              </button>
+
+              {/* Close Icon Button */}
+              <button className="btn-icon-close" onClick={onClose} title="Close Admin Portal (Esc)">
+                <X size={20} />
+              </button>
+
+              {/* Settings Popover Dropdown */}
+              {isSettingsPopoverOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 0.6rem)',
+                  right: '2.5rem',
+                  background: '#ffffff',
+                  border: '1.5px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                  padding: '0.6rem',
+                  zIndex: 1400,
+                  minWidth: '230px',
+                  animation: 'fadeIn 0.2s ease'
+                }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', padding: '0.35rem 0.6rem 0.45rem', borderBottom: '1px solid var(--border-color)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Dashboard Settings
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeletedFolderNames([]);
+                      try {
+                        localStorage.removeItem('ranbidge_deleted_folders');
+                      } catch (e) {}
+                      setIsSettingsPopoverOpen(false);
+                      if (showToast) showToast('↺ Restored all deleted folders to Admin Drive!');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      width: '100%',
+                      padding: '0.55rem 0.65rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--text-main)',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <RotateCcw size={16} color="var(--primary)" />
+                    <span>Restore Deleted Folders</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats Grid */}
@@ -565,8 +1657,8 @@ export default function AdminPortalModal({
             {/* Clickable Colleges Count Stat Card Container */}
             <div 
               className="admin-stat-card clickable" 
-              onClick={() => setIsCollegesModalOpen(true)}
-              title="Click to open Colleges & Certificates Grid View"
+              onClick={() => setIsCollegesDirectoryModalOpen(true)}
+              title="Click to view all added colleges"
             >
               <div className="stat-icon success">
                 <Building />
@@ -575,7 +1667,7 @@ export default function AdminPortalModal({
                 <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>{stats.collegesCount}</span>
                   <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#15803d', padding: '0.15rem 0.55rem', borderRadius: '50px', fontWeight: 800 }}>
-                    View Grid &rarr;
+                    View Added Colleges &rarr;
                   </span>
                 </div>
                 <div className="stat-label">Colleges Represented</div>
@@ -639,6 +1731,146 @@ export default function AdminPortalModal({
 
           {adminTab === 'registrations' ? (
             <>
+              {/* File Explorer Dashboard Folders Drive */}
+              <div className="dashboard-folders-section">
+                <div className="dashboard-folders-header">
+                  <div>
+                    <h4 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem', margin: 0 }}>
+                      <Folder color="#eab308" size={18} /> Dashboard Folders ({allFoldersList.length})
+                    </h4>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                      Click a folder to inspect and filter records for that college or project directory.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {selectedFolderIds.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => {
+                          setSelectedFolderIds([]);
+                          setAnchorFolderIndex(null);
+                          setCurrentFolderIndex(null);
+                          setColumnFilters(prev => ({ ...prev, college: [], workshopName: [] }));
+                          setSearchQuery('');
+                        }}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                      >
+                        <RotateCcw size={12} /> Clear Selection ({selectedFolderIds.length})
+                      </button>
+                    )}
+                    {selectedFolderIds.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            const targetFolders = allFoldersList.filter(f => selectedFolderIds.includes(f.id));
+                            handleCutFolders(targetFolders);
+                          }}
+                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                          title="Cut selected folders (Ctrl+X)"
+                        >
+                          <Scissors size={13} color="#d97706" /> Cut ({selectedFolderIds.length})
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            const targetFolders = allFoldersList.filter(f => selectedFolderIds.includes(f.id));
+                            handleCopyFolders(targetFolders);
+                          }}
+                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                          title="Copy selected folders (Ctrl+C)"
+                        >
+                          <Copy size={13} color="#0284c7" /> Copy ({selectedFolderIds.length})
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-danger btn-sm"
+                          onClick={handleDeleteSelectedFolders}
+                          style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem' }}
+                          title="Delete selected folders (Press Delete key on keyboard)"
+                        >
+                          <Trash2 size={13} /> Delete Selected ({selectedFolderIds.length})
+                        </button>
+                      </>
+                    )}
+                    {folderClipboard.mode && folderClipboard.folders.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm"
+                        onClick={() => handlePasteFolders(null)}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', background: '#16a34a', borderColor: '#16a34a' }}
+                        title="Paste into Root Dashboard (Ctrl+V)"
+                      >
+                        <Clipboard size={13} /> Paste {folderClipboard.mode === 'cut' ? 'Moved' : 'Copied'} ({folderClipboard.folders.length})
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      className="btn-primary btn-sm"
+                      onClick={() => setIsAddFolderModalOpen(true)}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.45rem 0.75rem' }}
+                      title="Create New Folder"
+                    >
+                      <FolderPlus size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="folders-grid">
+                  {allFoldersList.map((folder, index) => {
+                    const isSelected = selectedFolderIds.includes(folder.id);
+                    const isCut = folderClipboard.mode === 'cut' && folderClipboard.folders.some(f => f.id === folder.id || f.name.toLowerCase() === folder.name.toLowerCase());
+                    return (
+                      <div
+                        key={folder.id}
+                        className={`folder-grid-item ${isSelected ? 'active' : ''}`}
+                        style={isCut ? { opacity: 0.5, borderStyle: 'dashed', borderColor: '#d97706' } : {}}
+                        onClick={(e) => handleFolderClick(e, folder, index)}
+                        onDoubleClick={() => setOpenedFolderPage(folder)}
+                        onContextMenu={(e) => {
+                          if (!selectedFolderIds.includes(folder.id)) {
+                            setSelectedFolderIds([folder.id]);
+                            setAnchorFolderIndex(index);
+                            setCurrentFolderIndex(index);
+                            applyFolderFilterForSelection([folder]);
+                          }
+                          handleFolderContextMenu(e, folder);
+                        }}
+                        title={`Folder: ${folder.name} (Single-click to select, Double-click to open)`}
+                      >
+                        <span className="folder-icon-img">📁</span>
+                        <span className="folder-item-name">{folder.name}</span>
+                        {folder.count > 0 && (
+                          <span className="folder-item-count">{folder.count}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="folder-options-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!selectedFolderIds.includes(folder.id)) {
+                              setSelectedFolderIds([folder.id]);
+                              setAnchorFolderIndex(index);
+                              setCurrentFolderIndex(index);
+                              applyFolderFilterForSelection([folder]);
+                            }
+                            handleFolderContextMenu(e, folder);
+                          }}
+                          title="Folder options (Rename, Delete, Open)"
+                        >
+                          <MoreVertical size={15} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Admin Toolbar */}
               <div className="admin-toolbar">
                 <div className="admin-search-wrapper">
@@ -659,9 +1891,6 @@ export default function AdminPortalModal({
                     style={{ background: '#0284c7', borderColor: '#0284c7' }}
                   >
                     <UserCheck size={15} /> Check Users Data ({records.length})
-                  </button>
-                  <button className="btn-secondary btn-sm" onClick={onLoadSampleData} title="Load Demo Records">
-                    <Database size={15} /> Load Demo Data
                   </button>
                   <button className="btn-primary btn-sm" onClick={handleExportCsv} title="Download CSV report">
                     <FileSpreadsheet size={15} /> Export CSV
@@ -755,12 +1984,120 @@ export default function AdminPortalModal({
                 </div>
               )}
 
+              {/* Bulk Selection Action Toolbar */}
+              {selectedStudentIds.length > 0 && (
+                <div style={{
+                  background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                  color: '#ffffff',
+                  padding: '0.85rem 1.25rem',
+                  borderRadius: 'var(--radius-lg)',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.4)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{
+                      background: 'var(--primary)',
+                      color: '#ffffff',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '50px',
+                      fontSize: '0.82rem',
+                      fontWeight: 800
+                    }}>
+                      {selectedStudentIds.length} Selected
+                    </span>
+                    <span style={{ fontSize: '0.88rem', opacity: 0.9 }}>
+                      Students selected for batch download & portal release
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                    {/* Accept All Selected Icon Button (Green) */}
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleBulkApproveAndSend}
+                      style={{ width: '38px', height: '38px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#16a34a', borderColor: '#15803d', borderRadius: 'var(--radius-md)' }}
+                      title={`Accept All Selected (${selectedStudentIds.length}) & Send to User Portal`}
+                    >
+                      <UserCheck size={18} />
+                    </button>
+
+                    {/* Reject All Selected Icon Button (Red) */}
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleBulkReject}
+                      style={{ width: '38px', height: '38px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#dc2626', borderColor: '#b91c1c', borderRadius: 'var(--radius-md)' }}
+                      title={`Reject All Selected (${selectedStudentIds.length}) Students`}
+                    >
+                      <X size={18} />
+                    </button>
+
+                    {/* Download Selected Certificates Icon Button (Blue) */}
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleBulkDownloadCertificates}
+                      style={{ width: '38px', height: '38px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#3b82f6', borderColor: '#2563eb', borderRadius: 'var(--radius-md)' }}
+                      title={`Download Certificates (${selectedStudentIds.length})`}
+                    >
+                      <Download size={18} />
+                    </button>
+
+                    {/* Deselect All Icon Button */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStudentIds([])}
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer'
+                      }}
+                      title="Deselect All"
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Admin Data Table */}
               <div className="admin-table-wrapper">
                 {filteredRecords.length > 0 ? (
                   <table className="admin-table">
                     <thead>
                       <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            title="Select All Students"
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                            checked={filteredRecords.length > 0 && filteredRecords.every(r => selectedStudentIds.includes(r.id))}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const allIds = Array.from(new Set([...selectedStudentIds, ...filteredRecords.map(r => r.id)]));
+                                setSelectedStudentIds(allIds);
+                              } else {
+                                const currentFilteredIds = new Set(filteredRecords.map(r => r.id));
+                                setSelectedStudentIds(selectedStudentIds.filter(id => !currentFilteredIds.has(id)));
+                              }
+                            }}
+                          />
+                        </th>
                         <th>#</th>
 
                         {/* ID Column */}
@@ -843,53 +2180,133 @@ export default function AdminPortalModal({
                           {renderCategoryPopover('workshopDate', 'Workshop Date', uniqueOptions.workshopDate)}
                         </th>
 
+                        <th>Status</th>
                         <th style={{ textAlign: 'right' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRecords.map((rec, index) => (
-                        <tr key={rec.id || index}>
-                          <td><strong>{index + 1}</strong></td>
-                          <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{rec.id}</code></td>
-                          <td><strong>{rec.fullName}</strong></td>
-                          <td>{rec.college}</td>
-                          <td><code>{rec.rollNumber}</code></td>
-                          <td>{rec.passoutYear}</td>
-                          <td>{rec.department}</td>
-                          <td>
-                            <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
-                              {rec.workshopName}
-                            </span>
-                          </td>
-                          <td>{rec.workshopDate || 'N/A'}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
-                              <button
-                                className="btn-secondary btn-sm"
-                                onClick={() => setSelectedGeneratedCertRecord(rec)}
-                                title="View & Download Official Certificate"
-                                style={{ padding: '0.35rem 0.55rem' }}
-                              >
-                                <Award size={15} color="var(--primary)" />
-                              </button>
-                              <button
-                                className="btn-action-del"
-                                onClick={() => onDeleteRecord(rec.id)}
-                                title="Delete Record"
-                              >
-                                <Trash size={15} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredRecords.map((rec, index) => {
+                        const isVerified = rec.verificationStatus === 'verified';
+                        return (
+                          <tr 
+                            key={rec.id || index}
+                            onClick={() => setViewingStudentDetail(rec)}
+                            style={{ cursor: 'pointer' }}
+                            title="Click to view full student registration credentials & certificate"
+                          >
+                            <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                                checked={selectedStudentIds.includes(rec.id)}
+                                onChange={() => {
+                                  if (selectedStudentIds.includes(rec.id)) {
+                                    setSelectedStudentIds(selectedStudentIds.filter(id => id !== rec.id));
+                                  } else {
+                                    setSelectedStudentIds([...selectedStudentIds, rec.id]);
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td><strong>{index + 1}</strong></td>
+                            <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{rec.id}</code></td>
+                            <td><strong>{rec.fullName}</strong></td>
+                            <td>{rec.college}</td>
+                            <td><code>{rec.rollNumber}</code></td>
+                            <td>{rec.passoutYear}</td>
+                            <td>{rec.department}</td>
+                            <td>
+                              <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                                {rec.workshopName}
+                              </span>
+                            </td>
+                            <td>{rec.workshopDate || 'N/A'}</td>
+                            <td>
+                              {isVerified ? (
+                                <span
+                                  title="Verified & Accepted"
+                                  style={{
+                                    background: '#dcfce7',
+                                    color: '#15803d',
+                                    padding: '0.35rem',
+                                    borderRadius: '50%',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #86efac'
+                                  }}
+                                >
+                                  <CheckCircle2 size={16} />
+                                </span>
+                              ) : (
+                                <span
+                                  title="Pending Verification"
+                                  style={{
+                                    background: '#fef3c7',
+                                    color: '#b45309',
+                                    padding: '0.35rem',
+                                    borderRadius: '50%',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #fde68a'
+                                  }}
+                                >
+                                  <Clock size={16} />
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  className="btn-primary btn-sm"
+                                  onClick={() => onVerifyRecord && onVerifyRecord(rec.id)}
+                                  title={isVerified ? "Already Accepted & Verified" : "Accept Registration & Generate Certificate"}
+                                  style={{
+                                    padding: '0.45rem 0.6rem',
+                                    borderRadius: '6px',
+                                    background: isVerified ? '#15803d' : '#16a34a',
+                                    borderColor: '#15803d',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <UserCheck size={16} color="#ffffff" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-action-del"
+                                  onClick={() => onDeleteRecord(rec.id)}
+                                  title="Cancel / Delete Record"
+                                  style={{
+                                    padding: '0.45rem 0.6rem',
+                                    borderRadius: '6px',
+                                    background: '#ef4444',
+                                    borderColor: '#dc2626',
+                                    color: '#ffffff',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <X size={16} color="#ffffff" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 ) : (
                   <div className="admin-empty-state">
                     <FolderOpen size={48} />
                     <h3>No Registration Records Found</h3>
-                    <p>Submit a registration form or click "Load Demo Data" to populate the Admin Portal.</p>
+                    <p>Submit a registration form to populate the Admin Portal.</p>
                   </div>
                 )}
               </div>
@@ -1122,374 +2539,6 @@ export default function AdminPortalModal({
                 </div>
               )}
             </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* COLLEGES & CERTIFICATES INTERACTIVE GRID MODAL */}
-      {isCollegesModalOpen && (
-        <div className="admin-modal-overlay" style={{ zIndex: 1100 }} onClick={() => setIsCollegesModalOpen(false)}>
-          <div 
-            className="admin-modal-container" 
-            style={{ width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%' }} 
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="admin-header">
-              <div className="admin-header-title">
-                <div className="admin-badge" style={{ background: '#dcfce7', color: '#15803d' }}>
-                  <Building size={14} /> Colleges Analytics & Certificate Dump
-                </div>
-                <h2>
-                  {selectedCollegeName ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <button 
-                        className="btn-secondary btn-sm" 
-                        onClick={() => setSelectedCollegeName(null)}
-                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                      >
-                        <ArrowLeft size={14} /> Back to All Colleges
-                      </button>
-                      <span>{selectedCollegeName}</span>
-                    </span>
-                  ) : (
-                    `Represented Colleges Grid (${stats.collegesCount})`
-                  )}
-                </h2>
-                <p>
-                  {selectedCollegeName 
-                    ? `Inspecting certificates and registrations for ${selectedCollegeName}` 
-                    : `Analyze all represented colleges and inspect dumped certificates available in the portal.`}
-                </p>
-              </div>
-              <button 
-                className="btn-icon-close" 
-                onClick={() => {
-                  if (selectedCollegeName) {
-                    setSelectedCollegeName(null);
-                  } else {
-                    setIsCollegesModalOpen(false);
-                  }
-                }} 
-                title="Close Colleges Modal (Esc)"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Toolbar: Search & Analytics summary */}
-            <div className="admin-toolbar" style={{ flexWrap: 'wrap', gap: '1rem' }}>
-              <div className="admin-search-wrapper" style={{ minWidth: '280px' }}>
-                <Search className="search-icon" />
-                <input
-                  type="text"
-                  className="admin-search-input"
-                  placeholder={selectedCollegeName ? "Search certificates in this college..." : "Search college name, student name, roll number..."}
-                  value={collegeSearchQuery}
-                  onChange={(e) => setCollegeSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  <Award size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                  Total Dumped Certificates: <strong>{certificates.length}</strong>
-                </span>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  <Users size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                  Total Registrations: <strong>{records.length}</strong>
-                </span>
-              </div>
-            </div>
-
-            {/* MODAL CONTENT VIEW */}
-            {selectedCollegeName && activeCollege ? (
-              /* VIEW: SPECIFIC COLLEGE CERTIFICATES & PARTICIPANTS GRID */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  padding: '1rem 1.25rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-color)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '1rem'
-                }}>
-                  <div>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                      {activeCollege.name}
-                    </h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      {activeCollege.certificates.length} Certificate Document(s) Dumped &bull; {activeCollege.records.length} Student Registration(s)
-                    </p>
-                  </div>
-                  <button className="btn-secondary btn-sm" onClick={() => setSelectedCollegeName(null)}>
-                    <ArrowLeft size={14} /> Switch College
-                  </button>
-                </div>
-
-                {/* College Dumped Certificates Section */}
-                <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Award size={18} color="var(--primary)" />
-                    Dumped Certificates Grid ({activeCollege.certificates.length})
-                  </h4>
-
-                  {activeCollege.certificates.length > 0 ? (
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                      gap: '1rem',
-                      maxHeight: '380px',
-                      overflowY: 'auto',
-                      paddingRight: '4px'
-                    }}>
-                      {activeCollege.certificates
-                        .filter(cert => {
-                          const q = collegeSearchQuery.toLowerCase().trim();
-                          if (!q) return true;
-                          return (
-                            (cert.fileName && cert.fileName.toLowerCase().includes(q)) ||
-                            (cert.studentName && cert.studentName.toLowerCase().includes(q)) ||
-                            (cert.rollNumber && cert.rollNumber.toLowerCase().includes(q))
-                          );
-                        })
-                        .map((cert, idx) => {
-                          const isImage = cert.fileType === 'image' || /\.(jpg|jpeg|png|gif|webp)$/i.test(cert.fileName || '');
-                          const isPdf = cert.fileType === 'pdf' || /\.pdf$/i.test(cert.fileName || '');
-                          const isPpt = cert.fileType === 'ppt' || /\.(ppt|pptx)$/i.test(cert.fileName || '');
-
-                          return (
-                            <div
-                              key={cert.id || idx}
-                              onClick={() => setSelectedPreviewCert(cert)}
-                              className="cert-grid-card"
-                              style={{
-                                background: '#ffffff',
-                                border: '1.5px solid var(--border-color)',
-                                borderRadius: 'var(--radius-md)',
-                                overflow: 'hidden',
-                                cursor: 'pointer',
-                                transition: 'all 0.25s ease',
-                                display: 'flex',
-                                flexDirection: 'column'
-                              }}
-                            >
-                              {/* Preview Box Header */}
-                              <div style={{
-                                height: '130px',
-                                background: 'var(--bg-secondary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderBottom: '1px solid var(--border-color)',
-                                position: 'relative'
-                              }}>
-                                {isImage && cert.fileData ? (
-                                  <img src={cert.fileData} alt={cert.fileName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : isPdf ? (
-                                  <div style={{ textAlign: 'center', color: '#dc2626' }}>
-                                    <FileText size={42} />
-                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, marginTop: '0.2rem' }}>PDF DOCUMENT</div>
-                                  </div>
-                                ) : (
-                                  <Award size={42} color="var(--primary)" />
-                                )}
-
-                                <span style={{
-                                  position: 'absolute',
-                                  top: '6px',
-                                  right: '6px',
-                                  background: isPdf ? '#fee2e2' : isImage ? '#dbeafe' : '#fef3c7',
-                                  color: isPdf ? '#dc2626' : isImage ? '#1d4ed8' : '#b45309',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 800,
-                                  padding: '0.15rem 0.45rem',
-                                  borderRadius: '4px',
-                                  textTransform: 'uppercase'
-                                }}>
-                                  {cert.fileType}
-                                </span>
-                              </div>
-
-                              <div style={{ padding: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                                <div>
-                                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={cert.fileName}>
-                                    {cert.fileName}
-                                  </div>
-                                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                                    {cert.studentName || 'Participant'}
-                                  </div>
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.6rem', paddingTop: '0.4rem', borderTop: '1px solid #f1f5f9' }}>
-                                  <code style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700 }}>
-                                    {cert.rollNumber || 'N/A'}
-                                  </code>
-                                  <button
-                                    className="btn-primary btn-sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDownloadCert(cert);
-                                    }}
-                                    title="Download Certificate"
-                                    style={{ padding: '0.35rem 0.5rem' }}
-                                  >
-                                    <Download size={13} />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  ) : (
-                    <div style={{ background: '#f8fafc', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <Award size={36} color="var(--text-light)" style={{ display: 'block', margin: '0 auto 0.5rem' }} />
-                      <p style={{ fontSize: '0.9rem' }}>No dumped certificates linked to this college yet.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* College Student Registrations List */}
-                <div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Users size={18} color="var(--success)" />
-                    Registered Students ({activeCollege.records.length})
-                  </h4>
-
-                  {activeCollege.records.length > 0 ? (
-                    <div className="admin-table-wrapper" style={{ maxHeight: '240px' }}>
-                      <table className="admin-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Participant Name</th>
-                            <th>Roll Number</th>
-                            <th>Department</th>
-                            <th>Passout</th>
-                            <th>Workshop</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activeCollege.records.map((rec, i) => (
-                            <tr key={rec.id || i}>
-                              <td><strong>{i + 1}</strong></td>
-                              <td><strong>{rec.fullName}</strong></td>
-                              <td><code>{rec.rollNumber}</code></td>
-                              <td>{rec.department}</td>
-                              <td>{rec.passoutYear}</td>
-                              <td><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{rec.workshopName}</span></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div style={{ background: '#f8fafc', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <p style={{ fontSize: '0.88rem' }}>No registration records submitted from this college yet.</p>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            ) : (
-              /* VIEW: ALL COLLEGES GRID */
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                {filteredColleges.length > 0 ? (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                    gap: '1.25rem',
-                    paddingRight: '4px'
-                  }}>
-                    {filteredColleges.map((col, idx) => (
-                      <div
-                        key={idx}
-                        className="college-card"
-                        onClick={() => setSelectedCollegeName(col.name)}
-                        title={`Click to view certificates for ${col.name}`}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                            <div style={{
-                              width: '44px',
-                              height: '44px',
-                              borderRadius: 'var(--radius-md)',
-                              background: 'var(--success-light)',
-                              color: 'var(--success)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}>
-                              <Building size={22} />
-                            </div>
-                            <span style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              background: '#f1f5f9',
-                              color: 'var(--text-muted)',
-                              padding: '0.2rem 0.55rem',
-                              borderRadius: '50px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.2rem'
-                            }}>
-                              Inspect <ChevronRight size={14} />
-                            </span>
-                          </div>
-
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem', lineHeight: '1.3' }}>
-                            {col.name}
-                          </h3>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
-                          <span style={{
-                            background: col.certificates.length > 0 ? 'var(--primary-light)' : '#f1f5f9',
-                            color: col.certificates.length > 0 ? 'var(--primary)' : 'var(--text-muted)',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            padding: '0.3rem 0.65rem',
-                            borderRadius: '6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem'
-                          }}>
-                            <Award size={14} /> {col.certificates.length} Certificate(s)
-                          </span>
-
-                          <span style={{
-                            background: col.records.length > 0 ? 'var(--success-light)' : '#f1f5f9',
-                            color: col.records.length > 0 ? 'var(--success)' : 'var(--text-muted)',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            padding: '0.3rem 0.65rem',
-                            borderRadius: '6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem'
-                          }}>
-                            <Users size={14} /> {col.records.length} Student(s)
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="admin-empty-state">
-                    <Building size={48} />
-                    <h3>No Colleges Found</h3>
-                    <p>Try searching for a different college name or roll number.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
           </div>
         </div>
       )}
@@ -1624,6 +2673,1237 @@ export default function AdminPortalModal({
             </div>
 
             <CertificateGenerator record={selectedGeneratedCertRecord} showActions={true} />
+          </div>
+        </div>
+      )}
+
+      {/* CREATE NEW DASHBOARD FOLDER MODAL */}
+      {isAddFolderModalOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1300 }} onClick={() => setIsAddFolderModalOpen(false)}>
+          <div className="pin-modal-container" style={{ maxWidth: '420px', padding: '1.5rem' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon-close pin-close-pos" onClick={() => setIsAddFolderModalOpen(false)} title="Close (Esc)">
+              <X size={18} />
+            </button>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#fef9c3', color: '#ca8a04', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
+                <FolderPlus size={26} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.2rem' }}>Create Dashboard Folder</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Enter a name to add a new folder item to your File Explorer dashboard.</p>
+            </div>
+            <form onSubmit={handleCreateFolder}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.45rem', textAlign: 'left' }}>
+                  Folder Name
+                </label>
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  style={{ paddingLeft: '0.85rem' }}
+                  placeholder="e.g. RANBIDGE Certificate Center, Church project..."
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1, padding: '0.65rem' }} onClick={() => setIsAddFolderModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.65rem' }}>
+                  Create Folder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RIGHT-CLICK FOLDER CONTEXT MENU */}
+      {contextMenu.visible && contextMenu.folder && (
+        <div
+          className="folder-context-menu"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="context-menu-item"
+            onClick={() => {
+              setOpenedFolderPage(contextMenu.folder);
+              setContextMenu({ visible: false, x: 0, y: 0, folder: null });
+            }}
+          >
+            <FolderOpen size={15} color="var(--primary)" />
+            <span>Open Folder Page ({contextMenu.folder?.name})</span>
+          </div>
+
+          <div className="context-menu-divider" />
+
+          {/* Cut Option */}
+          <div
+            className="context-menu-item"
+            onClick={() => {
+              const targets = selectedFolderIds.length > 1
+                ? allFoldersList.filter(f => selectedFolderIds.includes(f.id))
+                : [contextMenu.folder];
+              handleCutFolders(targets);
+            }}
+          >
+            <Scissors size={15} color="#d97706" />
+            <span>Cut (Ctrl+X)</span>
+          </div>
+
+          {/* Copy Option */}
+          <div
+            className="context-menu-item"
+            onClick={() => {
+              const targets = selectedFolderIds.length > 1
+                ? allFoldersList.filter(f => selectedFolderIds.includes(f.id))
+                : [contextMenu.folder];
+              handleCopyFolders(targets);
+            }}
+          >
+            <Copy size={15} color="#0284c7" />
+            <span>Copy (Ctrl+C)</span>
+          </div>
+
+          {/* Paste Option */}
+          {folderClipboard.mode && folderClipboard.folders.length > 0 && (
+            <div
+              className="context-menu-item"
+              onClick={() => handlePasteFolders(contextMenu.folder)}
+            >
+              <Clipboard size={15} color="#16a34a" />
+              <span>Paste Here (Ctrl+V)</span>
+            </div>
+          )}
+
+          <div className="context-menu-divider" />
+
+          <div
+            className="context-menu-item"
+            onClick={() => handleOpenCreateWorkshop(contextMenu.folder)}
+          >
+            <Layers size={15} color="#0284c7" />
+            <span>Create New Workshop / Event</span>
+          </div>
+
+          {selectedFolderIds.length === 1 && (
+            <div
+              className="context-menu-item"
+              onClick={() => handleOpenRenameModal(contextMenu.folder)}
+            >
+              <Edit3 size={15} color="#d97706" />
+              <span>Rename Folder</span>
+            </div>
+          )}
+
+          <div className="context-menu-divider" />
+
+          <div
+            className="context-menu-item danger"
+            onClick={() => {
+              if (selectedFolderIds.length > 1) {
+                handleDeleteSelectedFolders();
+              } else {
+                handleDeleteFolder(contextMenu.folder);
+              }
+            }}
+          >
+            <Trash2 size={15} color="#dc2626" />
+            <span>
+              {selectedFolderIds.length > 1 
+                ? `Delete ${selectedFolderIds.length} Selected Folders` 
+                : 'Delete Folder'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE NEW WORKSHOP FORM MODAL */}
+      {isWorkshopModalOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1400 }} onClick={() => setIsWorkshopModalOpen(false)}>
+          <div className="admin-modal-container" style={{ maxWidth: '560px', width: '92%', padding: '1.75rem', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon-close pin-close-pos" onClick={() => setIsWorkshopModalOpen(false)} title="Close (Esc)">
+              <X size={20} />
+            </button>
+
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
+                <Layers size={28} />
+              </div>
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.25rem' }}>Create New Workshop / Event</h3>
+              <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>
+                Fill in workshop details to create a dedicated workshop directory & verification drive.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveWorkshop} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Workshop Title */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                  Workshop / Event Title *
+                </label>
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  style={{ paddingLeft: '0.85rem', width: '100%' }}
+                  placeholder="e.g. AI & Full Stack Web Development BootCamp"
+                  value={workshopForm.title}
+                  onChange={(e) => setWorkshopForm(prev => ({ ...prev, title: e.target.value }))}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              {/* Row 1: College & Category */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                    Organizing College / Institution
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.85rem', width: '100%' }}
+                    placeholder="e.g. SRM Institute, VIT, JNTU..."
+                    value={workshopForm.college}
+                    onChange={(e) => setWorkshopForm(prev => ({ ...prev, college: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                    Event Category
+                  </label>
+                  <select
+                    className="admin-search-input"
+                    style={{ width: '100%', cursor: 'pointer' }}
+                    value={workshopForm.category}
+                    onChange={(e) => setWorkshopForm(prev => ({ ...prev, category: e.target.value }))}
+                  >
+                    <option value="Workshop">🛠️ Hands-on Workshop</option>
+                    <option value="Hackathon">⚡ Hackathon</option>
+                    <option value="BootCamp">🚀 BootCamp</option>
+                    <option value="Seminar">🎤 Technical Seminar</option>
+                    <option value="Certification Drive">📜 Certification Drive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Department & Event Date */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                    Department / Stream
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.85rem', width: '100%' }}
+                    placeholder="e.g. CSE, ECE, IT, Mechanical"
+                    value={workshopForm.department}
+                    onChange={(e) => setWorkshopForm(prev => ({ ...prev, department: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                    Workshop Date
+                  </label>
+                  <input
+                    type="date"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.85rem', width: '100%' }}
+                    value={workshopForm.date}
+                    onChange={(e) => setWorkshopForm(prev => ({ ...prev, date: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Duration & Lead Instructor */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                    Duration / Hours
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.85rem', width: '100%' }}
+                    placeholder="e.g. 2 Days (16 Hours)"
+                    value={workshopForm.duration}
+                    onChange={(e) => setWorkshopForm(prev => ({ ...prev, duration: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                    Instructor / Trainer
+                  </label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.85rem', width: '100%' }}
+                    placeholder="e.g. RANBIDGE Senior Specialist"
+                    value={workshopForm.trainer}
+                    onChange={(e) => setWorkshopForm(prev => ({ ...prev, trainer: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Agenda / Description */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem', textAlign: 'left' }}>
+                  Agenda & Remarks (Optional)
+                </label>
+                <textarea
+                  className="admin-search-input"
+                  style={{ padding: '0.65rem 0.85rem', width: '100%', height: '70px', resize: 'vertical' }}
+                  placeholder="Brief overview of activities, modules, or certification guidelines..."
+                  value={workshopForm.description}
+                  onChange={(e) => setWorkshopForm(prev => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1, padding: '0.7rem' }} onClick={() => setIsWorkshopModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.7rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                  <Layers size={16} /> Save Workshop
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE NEW FOLDER MODAL */}
+      {isAddFolderModalOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1350 }} onClick={() => setIsAddFolderModalOpen(false)}>
+          <div className="pin-modal-container" style={{ maxWidth: '420px', padding: '1.5rem' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon-close pin-close-pos" onClick={() => setIsAddFolderModalOpen(false)} title="Close (Esc)">
+              <X size={18} />
+            </button>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
+                <FolderPlus size={26} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.2rem' }}>Create New Folder</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Enter a name to create a new folder in your directory.</p>
+            </div>
+            <form onSubmit={handleCreateFolder}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.45rem', textAlign: 'left' }}>
+                  Folder Name
+                </label>
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  style={{ paddingLeft: '0.85rem' }}
+                  placeholder="e.g. Colleges, Workshops 2026"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1, padding: '0.65rem' }} onClick={() => setIsAddFolderModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.65rem' }}>
+                  Create Folder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RENAME FOLDER MODAL */}
+      {renameModal.isOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1350 }} onClick={() => setRenameModal({ isOpen: false, folder: null, newName: '' })}>
+          <div className="pin-modal-container" style={{ maxWidth: '420px', padding: '1.5rem' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon-close pin-close-pos" onClick={() => setRenameModal({ isOpen: false, folder: null, newName: '' })} title="Close (Esc)">
+              <X size={18} />
+            </button>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#fef3c7', color: '#b45309', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem' }}>
+                <Edit3 size={26} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.2rem' }}>Rename Folder</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Enter a new name for folder <strong>"{renameModal.folder?.name}"</strong>.</p>
+            </div>
+            <form onSubmit={handleConfirmRename}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.45rem', textAlign: 'left' }}>
+                  New Folder Name
+                </label>
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  style={{ paddingLeft: '0.85rem' }}
+                  value={renameModal.newName}
+                  onChange={(e) => setRenameModal(prev => ({ ...prev, newName: e.target.value }))}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1, padding: '0.65rem' }} onClick={() => setRenameModal({ isOpen: false, folder: null, newName: '' })}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.65rem' }}>
+                  Save Name
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DEDICATED OPENED FOLDER INSPECTOR PAGE MODAL */}
+      {openedFolderPage && (
+        <div className="admin-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1280, padding: 0 }} onClick={() => setOpenedFolderPage(null)}>
+          <div className="admin-modal-container" style={{ maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1.75rem 2rem', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            
+            {/* Header Breadcrumb Banner */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.3rem' }}>
+                  <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }} onClick={() => setOpenedFolderPage(null)}>📁 Root Dashboard</span>
+                  {openedFolderPage.parentName && (
+                    <>
+                      <ChevronRight size={14} />
+                      <span
+                        style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
+                        onClick={() => {
+                          const parentObj = customFolders.find(f => f.id === openedFolderPage.parentId || (f.name && f.name.toLowerCase() === openedFolderPage.parentName.toLowerCase())) || { id: openedFolderPage.parentId, name: openedFolderPage.parentName };
+                          setOpenedFolderPage(parentObj);
+                        }}
+                      >
+                        📁 {openedFolderPage.parentName}
+                      </span>
+                    </>
+                  )}
+                  <ChevronRight size={14} />
+                  <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>📁 {openedFolderPage.name}</span>
+                </div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>📁</span> {openedFolderPage.name}
+                </h2>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                  Folder Directory & Verification Files Inspector
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setOpenedFolderPage(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)' }}
+                  title="Return to Root Dashboard"
+                >
+                  <Building size={18} />
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => handleOpenAddStudentModal(openedFolderPage)}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 0.75rem', background: '#2563eb', borderColor: '#1d4ed8', borderRadius: 'var(--radius-md)' }}
+                  title="Add Registered Students Data"
+                >
+                  <UserPlus size={18} />
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => handleOpenImportVerifiedModal(openedFolderPage)}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 0.75rem', background: '#059669', borderColor: '#047857', borderRadius: 'var(--radius-md)' }}
+                  title="Import Verified Students"
+                >
+                  <FileSpreadsheet size={18} />
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsAddFolderModalOpen(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)' }}
+                  title="Create New Sub-Folder"
+                >
+                  <FolderPlus size={18} />
+                </button>
+
+                <button className="btn-icon-close" onClick={() => setOpenedFolderPage(null)} title="Close Folder View (Esc)">
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-Folders Directory inside current location */}
+            {openedFolderSubFolders.length > 0 && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Folder color="#eab308" size={16} /> Sub-Folders in "{openedFolderPage.name}" ({openedFolderSubFolders.length})
+                  </h4>
+                </div>
+
+                <div className="folders-grid" style={{ marginBottom: '0.5rem' }}>
+                    {openedFolderSubFolders.map((subFolder) => {
+                      const isSelected = selectedFolderIds.includes(subFolder.id);
+                      const isCut = folderClipboard.mode === 'cut' && folderClipboard.folders.some(f => f.id === subFolder.id || f.name.toLowerCase() === subFolder.name.toLowerCase());
+                      return (
+                        <div
+                          key={subFolder.id}
+                          className={`folder-grid-item ${isSelected ? 'active' : ''}`}
+                          style={isCut ? { opacity: 0.5, borderStyle: 'dashed', borderColor: '#d97706' } : {}}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFolderIds([subFolder.id]);
+                          }}
+                          onDoubleClick={() => setOpenedFolderPage(subFolder)}
+                          onContextMenu={(e) => {
+                            if (!selectedFolderIds.includes(subFolder.id)) {
+                              setSelectedFolderIds([subFolder.id]);
+                            }
+                            handleFolderContextMenu(e, subFolder);
+                          }}
+                          title={`Sub-Folder: ${subFolder.name} (Single-click to select, Double-click to open)`}
+                        >
+                      <span className="folder-icon-img">📁</span>
+                      <span className="folder-item-name">{subFolder.name}</span>
+                      <button
+                        type="button"
+                        className="folder-options-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFolderContextMenu(e, subFolder);
+                        }}
+                        title="Sub-folder options"
+                      >
+                        <MoreVertical size={14} />
+                      </button>
+                    </div>
+                  );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Student Records Table Section */}
+            {openedFolderRecords.length > 0 && (
+              <div style={{ marginTop: openedFolderSubFolders.length > 0 ? '1.5rem' : '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Users size={16} color="var(--primary)" /> Student Records ({openedFolderRecords.length})
+                  </h4>
+
+                  {selectedStudentIds.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary)', marginRight: '0.2rem' }}>
+                        {selectedStudentIds.length} Selected
+                      </span>
+
+                      {/* Accept All Selected Icon Button (Green) */}
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm"
+                        onClick={handleBulkApproveAndSend}
+                        style={{ width: '30px', height: '30px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#16a34a', borderColor: '#15803d', borderRadius: '6px' }}
+                        title={`Accept All Selected (${selectedStudentIds.length}) & Send to User Portal`}
+                      >
+                        <UserCheck size={16} />
+                      </button>
+
+                      {/* Reject All Selected Icon Button (Red) */}
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm"
+                        onClick={handleBulkReject}
+                        style={{ width: '30px', height: '30px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#dc2626', borderColor: '#b91c1c', borderRadius: '6px' }}
+                        title={`Reject All Selected (${selectedStudentIds.length}) Students`}
+                      >
+                        <X size={16} />
+                      </button>
+
+                      {/* Download Selected Certificates Icon Button (Blue) */}
+                      <button
+                        type="button"
+                        className="btn-primary btn-sm"
+                        onClick={handleBulkDownloadCertificates}
+                        style={{ width: '30px', height: '30px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#3b82f6', borderColor: '#2563eb', borderRadius: '6px' }}
+                        title={`Download Certificates (${selectedStudentIds.length})`}
+                      >
+                        <Download size={16} />
+                      </button>
+
+                      {/* Deselect All Icon Button */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStudentIds([])}
+                        style={{ width: '30px', height: '30px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}
+                        title="Deselect All"
+                      >
+                        <RotateCcw size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="admin-table-wrapper" style={{ maxHeight: 'calc(100vh - 220px)', height: 'calc(100vh - 220px)', minHeight: '500px', width: '100%' }}>
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            title="Select All Folder Students"
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                            checked={openedFolderRecords.length > 0 && openedFolderRecords.every(r => selectedStudentIds.includes(r.id))}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const allIds = Array.from(new Set([...selectedStudentIds, ...openedFolderRecords.map(r => r.id)]));
+                                setSelectedStudentIds(allIds);
+                              } else {
+                                const currentIds = new Set(openedFolderRecords.map(r => r.id));
+                                setSelectedStudentIds(selectedStudentIds.filter(id => !currentIds.has(id)));
+                              }
+                            }}
+                          />
+                        </th>
+                        <th>#</th>
+                        <th>Participant Name</th>
+                        <th>Roll Number</th>
+                        <th>College</th>
+                        <th>Department</th>
+                        <th>Passout</th>
+                        <th>Workshop</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {openedFolderRecords.map((rec, i) => {
+                        const isVerified = rec.verificationStatus === 'verified';
+                        return (
+                          <tr 
+                            key={rec.id || i}
+                            onClick={() => setViewingStudentDetail(rec)}
+                            style={{ cursor: 'pointer' }}
+                            title="Click to view full student registration credentials & certificate"
+                          >
+                            <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                                checked={selectedStudentIds.includes(rec.id)}
+                                onChange={() => {
+                                  if (selectedStudentIds.includes(rec.id)) {
+                                    setSelectedStudentIds(selectedStudentIds.filter(id => id !== rec.id));
+                                  } else {
+                                    setSelectedStudentIds([...selectedStudentIds, rec.id]);
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td><strong>{i + 1}</strong></td>
+                            <td><strong>{rec.fullName}</strong></td>
+                            <td><code>{rec.rollNumber}</code></td>
+                            <td>{rec.college}</td>
+                            <td>{rec.department}</td>
+                            <td>{rec.passoutYear}</td>
+                            <td><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{rec.workshopName}</span></td>
+                            <td>
+                              {isVerified ? (
+                                <span
+                                  title="Verified & Accepted"
+                                  style={{
+                                    background: '#dcfce7',
+                                    color: '#15803d',
+                                    padding: '0.35rem',
+                                    borderRadius: '50%',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #86efac'
+                                  }}
+                                >
+                                  <CheckCircle2 size={15} />
+                                </span>
+                              ) : (
+                                <span
+                                  title="Pending Verification"
+                                  style={{
+                                    background: '#fef3c7',
+                                    color: '#b45309',
+                                    padding: '0.35rem',
+                                    borderRadius: '50%',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #fde68a'
+                                  }}
+                                >
+                                  <Clock size={15} />
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  className="btn-primary btn-sm"
+                                  onClick={() => onVerifyRecord && onVerifyRecord(rec.id)}
+                                  title={isVerified ? "Already Accepted & Verified" : "Accept Registration & Generate Certificate"}
+                                  style={{
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: '6px',
+                                    background: isVerified ? '#15803d' : '#16a34a',
+                                    borderColor: '#15803d',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <UserCheck size={15} color="#ffffff" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-action-del"
+                                  onClick={() => onDeleteRecord(rec.id)}
+                                  title="Cancel / Delete Record"
+                                  style={{
+                                    padding: '0.35rem 0.5rem',
+                                    borderRadius: '6px',
+                                    background: '#ef4444',
+                                    borderColor: '#dc2626',
+                                    color: '#ffffff',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <X size={15} color="#ffffff" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Empty State if neither sub-folders nor records exist */}
+            {openedFolderSubFolders.length === 0 && openedFolderRecords.length === 0 && (
+              <div className="admin-empty-state">
+                <FolderOpen size={48} />
+                <h3>Empty Folder Directory</h3>
+                <p>There are no student registrations or sub-folders linked to "{openedFolderPage.name}".</p>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ADD REGISTERED STUDENT DATA MODAL */}
+      {isAddStudentModalOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1350 }} onClick={() => setIsAddStudentModalOpen(false)}>
+          <div className="admin-modal-container" style={{ maxWidth: '520px', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <UserPlus size={22} color="#2563eb" />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>Add Registered Student Data</h3>
+              </div>
+              <button className="btn-icon-close" onClick={() => setIsAddStudentModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+              Manually add a student registration record into <strong>{openedFolderPage ? openedFolderPage.name : 'Root Dashboard'}</strong>.
+            </p>
+
+            <form onSubmit={handleSaveAddStudent}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>Full Name *</label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.75rem' }}
+                    placeholder="e.g. Aarav Sharma"
+                    value={addStudentForm.fullName}
+                    onChange={(e) => setAddStudentForm(prev => ({ ...prev, fullName: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>Roll Number *</label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.75rem' }}
+                    placeholder="e.g. 23471A1234"
+                    value={addStudentForm.rollNumber}
+                    onChange={(e) => setAddStudentForm(prev => ({ ...prev, rollNumber: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '0.85rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>College / Institution</label>
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  style={{ paddingLeft: '0.75rem' }}
+                  placeholder="College Name"
+                  value={addStudentForm.college}
+                  onChange={(e) => setAddStudentForm(prev => ({ ...prev, college: e.target.value }))}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>Department</label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.75rem' }}
+                    placeholder="e.g. CSE"
+                    value={addStudentForm.department}
+                    onChange={(e) => setAddStudentForm(prev => ({ ...prev, department: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>Passout Year</label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    style={{ paddingLeft: '0.75rem' }}
+                    placeholder="2026"
+                    value={addStudentForm.passoutYear}
+                    onChange={(e) => setAddStudentForm(prev => ({ ...prev, passoutYear: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>Workshop Name</label>
+                <input
+                  type="text"
+                  className="admin-search-input"
+                  style={{ paddingLeft: '0.75rem' }}
+                  placeholder="Workshop Title"
+                  value={addStudentForm.workshopName}
+                  onChange={(e) => setAddStudentForm(prev => ({ ...prev, workshopName: e.target.value }))}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1.25rem', background: '#f8fafc', padding: '0.75rem 0.9rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>
+                  <input
+                    type="checkbox"
+                    checked={addStudentForm.isVerified}
+                    onChange={(e) => setAddStudentForm(prev => ({ ...prev, isVerified: e.target.checked }))}
+                    style={{ width: '16px', height: '16px', accentColor: '#16a34a' }}
+                  />
+                  <span>Mark as Verified & Generate Certificate Immediately</span>
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1, padding: '0.65rem' }} onClick={() => setIsAddStudentModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.65rem', background: '#2563eb' }}>
+                  <UserPlus size={16} /> Save Student Data
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* IMPORT VERIFIED STUDENTS BULK MODAL */}
+      {isImportVerifiedModalOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1350 }} onClick={() => setIsImportVerifiedModalOpen(false)}>
+          <div className="admin-modal-container" style={{ maxWidth: '620px', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FileSpreadsheet size={22} color="#059669" />
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>Import Verified Students</h3>
+              </div>
+              <button className="btn-icon-close" onClick={() => setIsImportVerifiedModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              Paste roll numbers and student details below (CSV / list format). All imported students will be <strong>automatically verified and issued official certificates</strong>.
+            </p>
+            <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '0.65rem 0.85rem', borderRadius: '8px', fontSize: '0.78rem', color: '#065f46', marginBottom: '1rem' }}>
+              <strong>Format per line:</strong> <code>RollNumber, Full Name, College, Department, PassoutYear</code>
+            </div>
+
+            <form onSubmit={handleConfirmImportVerified}>
+              <div style={{ marginBottom: '1.25rem' }}>
+                <textarea
+                  className="admin-search-input"
+                  style={{ padding: '0.85rem', height: '160px', fontFamily: 'monospace', fontSize: '0.82rem', resize: 'vertical' }}
+                  placeholder="23471A1201, Aarav Sharma, IIT Madras, CSE, 2026&#10;23471A1202, Priya Ananth, Anna University, ECE, 2027"
+                  value={importVerifiedText}
+                  onChange={(e) => setImportVerifiedText(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1, padding: '0.65rem' }} onClick={() => setIsImportVerifiedModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.65rem', background: '#059669', borderColor: '#047857' }}>
+                  <FileSpreadsheet size={16} /> Import & Verify Students
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADDED COLLEGES DIRECTORY MODAL */}
+      {isCollegesDirectoryModalOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1300 }} onClick={() => setIsCollegesDirectoryModalOpen(false)}>
+          <div className="admin-modal-container" style={{ maxWidth: '850px', width: '92%', padding: '1.75rem', maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{ background: '#dcfce7', color: '#15803d', width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Building size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                    Added Colleges Directory ({collegeBreakdown.filter(c => c.name !== 'Unspecified College' || c.records.length > 0).length})
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                    View and inspect all colleges registered in the portal.
+                  </p>
+                </div>
+              </div>
+              <button className="btn-icon-close" onClick={() => setIsCollegesDirectoryModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="admin-search-wrapper" style={{ marginBottom: '1.25rem' }}>
+              <Search className="search-icon" />
+              <input
+                type="text"
+                className="admin-search-input"
+                placeholder="Search added college by name..."
+                value={collegeSearchInput}
+                onChange={(e) => setCollegeSearchInput(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {/* Colleges Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem', maxHeight: '480px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+              {collegeBreakdown
+                .filter(col => !collegeSearchInput || col.name.toLowerCase().includes(collegeSearchInput.toLowerCase().trim()))
+                .map((col, idx) => {
+                  const verifiedCount = col.records.filter(r => r.verificationStatus === 'verified').length;
+                  const totalCount = col.records.length;
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        background: '#ffffff',
+                        border: '1.5px solid var(--border-color)',
+                        borderRadius: '12px',
+                        padding: '1.1rem',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                            <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '0.45rem', borderRadius: '8px' }}>
+                              <Building size={18} />
+                            </div>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                              {col.name}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.75rem', background: '#f1f5f9', color: '#334155', padding: '0.2rem 0.55rem', borderRadius: '6px', fontWeight: 700 }}>
+                            👥 {totalCount} Students
+                          </span>
+                          <span style={{ fontSize: '0.75rem', background: '#dcfce7', color: '#15803d', padding: '0.2rem 0.55rem', borderRadius: '6px', fontWeight: 700 }}>
+                            ✅ {verifiedCount} Verified
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className="btn-primary btn-sm"
+                          style={{ flex: 1, justifyContent: 'center', fontSize: '0.78rem', padding: '0.45rem' }}
+                          onClick={() => {
+                            setIsCollegesDirectoryModalOpen(false);
+                            setOpenedFolderPage({ id: `col-${col.name}`, name: col.name, type: 'college' });
+                          }}
+                        >
+                          <FolderOpen size={14} /> View Folder
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          style={{ justifyContent: 'center', fontSize: '0.78rem', padding: '0.45rem 0.65rem' }}
+                          onClick={() => {
+                            setIsCollegesDirectoryModalOpen(false);
+                            setColumnFilters(prev => ({ ...prev, college: [col.name] }));
+                          }}
+                          title="Filter registrations table"
+                        >
+                          Filter
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* STUDENT REGISTRATION PROFILE DETAILS MODAL */}
+      {viewingStudentDetail && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1350 }} onClick={() => setViewingStudentDetail(null)}>
+          <div className="pin-modal-container" style={{ maxWidth: '850px', width: '92%', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon-close pin-close-pos" onClick={() => setViewingStudentDetail(null)} title="Close Details (Esc)">
+              <X size={20} />
+            </button>
+
+            {/* Modal Header */}
+            <div style={{ textAlign: 'left', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <User size={22} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                      {viewingStudentDetail.fullName}
+                    </h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
+                      Registration ID: <code style={{ background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{viewingStudentDetail.id}</code>
+                    </p>
+                  </div>
+                </div>
+
+                {viewingStudentDetail.verificationStatus === 'verified' ? (
+                  <span style={{
+                    background: '#dcfce7',
+                    color: '#15803d',
+                    padding: '0.4rem 1rem',
+                    borderRadius: '50px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    border: '1px solid #86efac'
+                  }}>
+                    <ShieldCheck size={16} /> VERIFIED & RELEASED
+                  </span>
+                ) : (
+                  <span style={{
+                    background: '#fef3c7',
+                    color: '#b45309',
+                    padding: '0.4rem 1rem',
+                    borderRadius: '50px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    border: '1px solid #fde68a'
+                  }}>
+                    <Clock size={16} /> PENDING ADMIN VERIFICATION
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Registration Details Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '1rem',
+              background: 'var(--bg-secondary)',
+              border: '1.5px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              textAlign: 'left'
+            }}>
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Roll Number
+                </span>
+                <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
+                  {viewingStudentDetail.rollNumber || 'N/A'}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  College / Institution
+                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {viewingStudentDetail.college || 'N/A'}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Department / Branch
+                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {viewingStudentDetail.department || 'N/A'}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Passout Year
+                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {viewingStudentDetail.passoutYear || 'N/A'}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Event / Workshop
+                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>
+                  {viewingStudentDetail.workshopName || 'N/A'}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Event Date
+                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {viewingStudentDetail.workshopDate || 'N/A'}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Submitted Timestamp
+                </span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  {viewingStudentDetail.submittedAt || (viewingStudentDetail.timestamp ? new Date(viewingStudentDetail.timestamp).toLocaleString() : 'N/A')}
+                </span>
+              </div>
+
+              {viewingStudentDetail.verifiedAt && (
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                    Verified Timestamp
+                  </span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#166534' }}>
+                    {viewingStudentDetail.verifiedAt}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Official Generated Certificate Section */}
+            <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Award size={20} color="var(--primary)" />
+                Official Certificate Preview & Actions
+              </h4>
+              <CertificateGenerator record={viewingStudentDetail} showActions={true} showToast={showToast} />
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setViewingStudentDetail(null)}
+                style={{ padding: '0.65rem 1.25rem' }}
+              >
+                Close
+              </button>
+
+              {viewingStudentDetail.verificationStatus !== 'verified' && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    if (onVerifyRecord) onVerifyRecord(viewingStudentDetail.id);
+                    setViewingStudentDetail(prev => prev ? { ...prev, verificationStatus: 'verified', verifiedAt: new Date().toLocaleString() } : null);
+                  }}
+                  style={{ padding: '0.65rem 1.5rem', background: '#16a34a', borderColor: '#15803d' }}
+                >
+                  <UserCheck size={18} />
+                  <span>Accept Registration & Verify</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="btn-action-del"
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to delete registration for ${viewingStudentDetail.fullName}?`)) {
+                    if (onDeleteRecord) onDeleteRecord(viewingStudentDetail.id);
+                    setViewingStudentDetail(null);
+                  }
+                }}
+                style={{ padding: '0.65rem 1.25rem', background: '#dc2626', borderColor: '#b91c1c', color: '#ffffff', borderRadius: 'var(--radius-md)' }}
+              >
+                <Trash size={16} />
+                <span>Delete Record</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

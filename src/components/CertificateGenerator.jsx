@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Download, Printer, Award } from 'lucide-react';
+import { Download, Printer, Award, Linkedin, Share2 } from 'lucide-react';
 
-export default function CertificateGenerator({ record, showActions = true, onDownloadComplete }) {
+export default function CertificateGenerator({ record, showActions = true, onDownloadComplete, showToast }) {
   const canvasRef = useRef(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -27,18 +27,15 @@ export default function CertificateGenerator({ record, showActions = true, onDow
     canvas.height = height;
 
     const bgImage = new Image();
-    // Try primary public path first, fallback if needed
     bgImage.src = '/reference_certificate.png';
     bgImage.crossOrigin = 'anonymous';
 
     bgImage.onload = () => {
       setImgLoaded(true);
-      // 1. Draw reference certificate background image
       ctx.drawImage(bgImage, 0, 0, width, height);
 
       const centerX = width / 2;
 
-      // 2. White Patch & Overlay Student Name
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(240, 455, 934, 75);
 
@@ -47,7 +44,6 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.fillStyle = '#0c2340';
       ctx.fillText(recipientName, centerX, 502);
 
-      // Name underline & Diamond symbol (◇)
       const nameTextWidth = ctx.measureText(recipientName).width;
       const underlineWidth = Math.max(380, nameTextWidth + 50);
       ctx.strokeStyle = '#1d4ed8';
@@ -59,7 +55,6 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.lineTo(centerX + underlineWidth / 2, 522);
       ctx.stroke();
 
-      // Center Diamond symbol
       ctx.fillStyle = '#1d4ed8';
       ctx.beginPath();
       ctx.moveTo(centerX, 516);
@@ -69,11 +64,9 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.closePath();
       ctx.fill();
 
-      // 3. White Patch & Overlay Workshop Duration & Title
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(140, 545, 1134, 98);
 
-      // Line 1: "for successfully participating in the 2-Day Workshop on"
       const prefixText = 'for successfully participating in the ';
       const durationPart = `${durationText} `;
       const suffixText = 'Workshop on';
@@ -90,33 +83,27 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       const totalLineWidth = prefixWidth + durationWidth + suffixWidth;
       const startX = centerX - (totalLineWidth / 2);
 
-      // Draw Prefix ("for successfully participating in the ")
       ctx.textAlign = 'left';
       ctx.font = '500 22px "Georgia", serif';
       ctx.fillStyle = '#1b365d';
       ctx.fillText(prefixText, startX, 576);
 
-      // Draw Duration ("2-Day ")
       ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#1d4ed8';
       ctx.fillText(durationPart, startX + prefixWidth, 576);
 
-      // Draw Suffix ("Workshop on")
       ctx.font = '500 22px "Georgia", serif';
       ctx.fillStyle = '#1b365d';
       ctx.fillText(suffixText, startX + prefixWidth + durationWidth, 576);
 
-      // Line 2: Main Workshop Title (Bold Uppercase Dark Blue)
       ctx.textAlign = 'center';
       ctx.font = '900 34px "Plus Jakarta Sans", "Inter", sans-serif';
       ctx.fillStyle = '#0c2340';
       ctx.fillText(workshopTitle.toUpperCase(), centerX, 628);
 
-      // 4. White Patch & Overlay Date & College Name (+2 font size: 21px)
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(160, 652, 1094, 60);
 
-      // Line 3: Date (Calendar Icon) & College Name (Location Pin Icon) - Perfectly Centered (+2 size)
       const dateStr = `📅  ${workshopDate}`;
       const collegeStr = `📍  ${collegeName}`;
       const gapBetween = 45;
@@ -135,7 +122,6 @@ export default function CertificateGenerator({ record, showActions = true, onDow
     };
 
     bgImage.onerror = () => {
-      // Fallback path
       const bgImage2 = new Image();
       bgImage2.src = '/assets/reference_certificate.png';
       bgImage2.onload = () => {
@@ -228,6 +214,25 @@ export default function CertificateGenerator({ record, showActions = true, onDow
     printWindow.document.close();
   };
 
+  // Direct Share to LinkedIn Action
+  const handleShareLinkedIn = () => {
+    const postText = `🎓 Thrilled to announce that I have successfully completed the specialized technical workshop on "${workshopTitle}" organized by RANBIDGE Solutions! 🚀\n\n📜 Certificate ID: ${record?.id || rollNumber}\n🏫 Institution: ${collegeName}\n💻 Department: ${record?.department || 'Engineering & Technology'}\n\nGrateful for the valuable hands-on learning experience and skill enrichment!\n\n#RANBIDGE #Certification #ContinuousLearning #Upskilling #Engineering #Technology #Achievement`;
+
+    try {
+      navigator.clipboard.writeText(postText);
+    } catch (err) {
+      console.warn('Clipboard write error:', err);
+    }
+
+    const currentUrl = window.location.href;
+    const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentUrl)}`;
+    window.open(linkedinUrl, '_blank', 'width=650,height=700,scrollbars=yes');
+
+    if (showToast) {
+      showToast('📋 Copied LinkedIn post text to clipboard! Opening LinkedIn...');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', alignItems: 'center' }}>
       {/* Interactive Live Canvas Certificate Preview */}
@@ -252,28 +257,67 @@ export default function CertificateGenerator({ record, showActions = true, onDow
         />
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons (Icon-Only) */}
       {showActions && (
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', alignItems: 'center', marginTop: '0.5rem' }}>
           <button
             className="btn-primary"
             onClick={handleDownload}
             disabled={isGenerating}
-            style={{ padding: '0.75rem 1.75rem', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ 
+              padding: '0.75rem', 
+              borderRadius: 'var(--radius-md)', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              width: '44px',
+              height: '44px'
+            }}
+            title={isGenerating ? "Generating PNG..." : "Download Official Certificate (PNG)"}
           >
-            <Download size={18} />
-            <span>{isGenerating ? 'Generating...' : 'Download Official Certificate (PNG)'}</span>
+            <Download size={20} />
           </button>
+          
           <button
             className="btn-secondary"
             onClick={handlePrint}
-            style={{ padding: '0.75rem 1.5rem', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ 
+              padding: '0.75rem', 
+              borderRadius: 'var(--radius-md)', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              width: '44px',
+              height: '44px'
+            }}
+            title="Print Certificate"
           >
-            <Printer size={18} />
-            <span>Print Certificate</span>
+            <Printer size={20} />
+          </button>
+
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleShareLinkedIn}
+            style={{
+              padding: '0.75rem',
+              borderRadius: 'var(--radius-md)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '44px',
+              height: '44px',
+              background: '#0a66c2',
+              borderColor: '#0a66c2',
+              color: '#ffffff'
+            }}
+            title="Share on LinkedIn"
+          >
+            <Linkedin size={20} />
           </button>
         </div>
       )}
     </div>
   );
 }
+

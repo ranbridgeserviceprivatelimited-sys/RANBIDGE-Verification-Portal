@@ -11,7 +11,7 @@ import Footer from './components/Footer';
 import { CheckCircle2 } from 'lucide-react';
 
 // Firebase Imports
-import { db, collection, addDoc, onSnapshot, deleteDoc, doc, getDocs } from './firebase';
+import { db, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from './firebase';
 
 // IndexedDB Persistence Import for large binary certificate files
 import { 
@@ -55,14 +55,55 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState('register');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      return localStorage.getItem('ranbidge_active_tab') || 'register';
+    } catch (err) {
+      return 'register';
+    }
+  });
   const [latestRecord, setLatestRecord] = useState(null);
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => {
+    try {
+      const unlocked = sessionStorage.getItem('ranbidge_admin_unlocked') === 'true';
+      const portalOpen = sessionStorage.getItem('ranbidge_admin_portal_open') === 'true';
+      return unlocked || portalOpen;
+    } catch (err) {
+      return false;
+    }
+  });
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [isAdminPortalOpen, setIsAdminPortalOpen] = useState(false);
+  const [isAdminPortalOpen, setIsAdminPortalOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem('ranbidge_admin_portal_open') === 'true';
+    } catch (err) {
+      return false;
+    }
+  });
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [registeredRecord, setRegisteredRecord] = useState(null);
   const [toasts, setToasts] = useState([]);
+
+  // Persist Active Tab to localStorage across browser refresh
+  useEffect(() => {
+    try {
+      localStorage.setItem('ranbidge_active_tab', activeTab);
+    } catch (err) {}
+  }, [activeTab]);
+
+  // Persist Admin Unlocked status to sessionStorage across browser refresh
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ranbidge_admin_unlocked', isAdminUnlocked ? 'true' : 'false');
+    } catch (err) {}
+  }, [isAdminUnlocked]);
+
+  // Persist Admin Portal Modal state to sessionStorage across browser refresh
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ranbidge_admin_portal_open', isAdminPortalOpen ? 'true' : 'false');
+    } catch (err) {}
+  }, [isAdminPortalOpen]);
 
   // 1. Initial Load: Retrieve certificates from IndexedDB to guarantee state persistence after page refresh
   useEffect(() => {
@@ -330,13 +371,13 @@ export default function App() {
     await handleSaveMasterDump(sampleMaster);
   };
 
-  // Toast message helper
+  // Toast message helper - keeps only 1 active popup on screen in a single line
   const showToast = (message) => {
     const id = Date.now();
-    setToasts(prev => [...prev, { id, message }]);
+    setToasts([{ id, message }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3500);
+    }, 3000);
   };
 
   // Registration Submission handler
@@ -348,6 +389,7 @@ export default function App() {
 
     setRecords(prev => [recordWithTime, ...prev]);
     setRegisteredRecord(recordWithTime);
+    setLatestRecord(recordWithTime);
     setIsSuccessModalOpen(true);
     showToast(`Registration completed for ${newRecord.fullName}!`);
 
@@ -362,6 +404,66 @@ export default function App() {
   const handleNewRegistration = () => {
     setLatestRecord(null);
     setActiveTab('register');
+  };
+
+  // Verify & Accept Registration Handler (Auto generates official certificate)
+  const handleVerifyRecord = async (id) => {
+    let targetRecord = null;
+    const updatedRecords = records.map(r => {
+      if (r.id === id || r.firestoreId === id) {
+        targetRecord = {
+          ...r,
+          verificationStatus: 'verified',
+          verifiedAt: new Date().toLocaleString()
+        };
+        return targetRecord;
+      }
+      return r;
+    });
+
+    if (!targetRecord) return;
+
+    setRecords(updatedRecords);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedRecords));
+    } catch (e) {}
+
+    // Update in Firestore if present
+    if (targetRecord.firestoreId) {
+      try {
+        await updateDoc(doc(db, 'registrations', targetRecord.firestoreId), {
+          verificationStatus: 'verified',
+          verifiedAt: targetRecord.verifiedAt
+        });
+      } catch (err) {
+        console.error('Error updating Firestore registration status:', err);
+      }
+    }
+
+    // Auto-generate official certificate if not already created
+    const rollKey = targetRecord.rollNumber ? targetRecord.rollNumber.trim().toUpperCase() : '';
+    const certExists = certificates.some(c => 
+      c.rollNumber && c.rollNumber.trim().toUpperCase() === rollKey
+    );
+
+    if (!certExists) {
+      const newCert = {
+        id: 'CERT-' + (targetRecord.rollNumber || targetRecord.id),
+        fileName: `${targetRecord.fullName || 'Student'}_Certificate.pdf`,
+        rollNumber: targetRecord.rollNumber || '',
+        studentName: targetRecord.fullName || '',
+        college: targetRecord.college || '',
+        workshopName: targetRecord.workshopName || 'RANBIDGE Verification',
+        issueDate: new Date().toISOString().split('T')[0],
+        downloadUrl: '#',
+        fileSize: '245 KB',
+        verificationStatus: 'verified',
+        uploadedAt: new Date().toLocaleString()
+      };
+      await handleSaveCertificates([newCert]);
+    }
+
+    showToast(`✅ Registration accepted & certificate generated for ${targetRecord.fullName}!`);
   };
 
   // Delete record handler
@@ -583,6 +685,8 @@ export default function App() {
               <RegistrationForm
                 onSubmitSuccess={handleRegistrationSubmit}
                 masterDump={masterDump}
+                records={records}
+                certificates={certificates}
                 showToast={showToast}
               />
             </div>
@@ -606,6 +710,7 @@ export default function App() {
             <PublicSearch
               records={records}
               certificates={certificates}
+              latestRecord={latestRecord || registeredRecord}
               onNewRegistration={() => setActiveTab('register')}
               showToast={showToast}
             />
@@ -636,6 +741,8 @@ export default function App() {
         certificates={certificates}
         masterDump={masterDump}
         onDeleteRecord={handleDeleteRecord}
+        onVerifyRecord={handleVerifyRecord}
+        onAddRecord={handleRegistrationSubmit}
         onClearAllRecords={handleClearAll}
         onLoadSampleData={handleLoadSampleData}
         onSaveCertificates={handleSaveCertificates}
@@ -652,10 +759,10 @@ export default function App() {
         isOpen={isSuccessModalOpen}
         record={registeredRecord}
         onClose={() => setIsSuccessModalOpen(false)}
-        onGoToCertificates={(rollNumber) => {
+        onGoToCertificates={() => {
           setIsSuccessModalOpen(false);
           setLatestRecord(registeredRecord);
-          setActiveTab('check-certs');
+          setActiveTab('verify');
         }}
         showToast={showToast}
       />
