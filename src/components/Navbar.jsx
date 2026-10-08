@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { FormInput, Search, Award, RotateCw } from 'lucide-react';
+import React, { useRef } from 'react';
+import { FormInput, Search, Award } from 'lucide-react';
 import logoImg from '../../assets/logo.jpg';
 
 export default function Navbar({ 
@@ -13,7 +13,6 @@ export default function Navbar({
 }) {
   const clickCountRef = useRef(0);
   const clickTimerRef = useRef(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleBrandClick = (e) => {
     e.preventDefault();
@@ -35,14 +34,6 @@ export default function Navbar({
     clickTimerRef.current = setTimeout(() => {
       clickCountRef.current = 0;
     }, 1200);
-  };
-
-  const handleRefreshClick = () => {
-    setIsRefreshing(true);
-    if (onRefreshData) onRefreshData();
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 900);
   };
 
   return (
@@ -84,16 +75,6 @@ export default function Navbar({
               <span>Verify Record</span>
             </button>
           </div>
-
-          {/* Refresh Database & Storage Button */}
-          <button
-            className="btn-secondary btn-sm"
-            onClick={handleRefreshClick}
-            title="Refresh & Sync Data with Firebase"
-            style={{ padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)' }}
-          >
-            <RotateCw size={16} className={isRefreshing ? 'spin-anim' : ''} />
-          </button>
         </div>
       </div>
     </header>

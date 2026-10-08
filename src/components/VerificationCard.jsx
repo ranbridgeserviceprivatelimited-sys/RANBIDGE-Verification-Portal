@@ -7,27 +7,43 @@ import CertificateDownloadBox from './CertificateDownloadBox';
 export default function VerificationCard({ record, certificates = [], onNewRegistration, showToast }) {
   const [selectedPreview, setSelectedPreview] = useState(null);
 
-  if (!record) return null;
+  const isVerified = record.verificationStatus === 'verified' || !record.verificationStatus;
 
   return (
     <div className="submission-card">
       {/* Header Badge */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <img src={logoImg} alt="RANBIDGE Solutions Logo" style={{ height: '45px', objectFit: 'contain' }} />
-        <span style={{
-          background: 'var(--success-light)',
-          color: 'var(--success)',
-          padding: '0.35rem 0.85rem',
-          borderRadius: '50px',
-          fontSize: '0.8rem',
-          fontWeight: 700,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.35rem',
-          border: '1px solid #bbf7d0'
-        }}>
-          <ShieldCheck size={15} /> REGISTRATION VERIFIED & PUBLISHED
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+        {isVerified ? (
+          <span style={{
+            background: 'var(--success-light)',
+            color: 'var(--success)',
+            padding: '0.35rem 0.85rem',
+            borderRadius: '50px',
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            border: '1px solid #bbf7d0'
+          }}>
+            <ShieldCheck size={15} /> VERIFIED WITH ADMIN PORTAL DATA
+          </span>
+        ) : (
+          <span style={{
+            background: 'var(--warning-light)',
+            color: 'var(--warning)',
+            padding: '0.35rem 0.85rem',
+            borderRadius: '50px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            border: '1px solid #fde68a'
+          }}>
+            <Clock size={15} /> PENDING ADMIN VERIFICATION
+          </span>
+        )}
       </div>
 
       {/* Instant Download Alert Banner */}

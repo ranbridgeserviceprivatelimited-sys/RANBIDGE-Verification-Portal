@@ -77,8 +77,11 @@ export default function AdminPinModal({ isOpen, onClose, onSuccess, showToast })
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary">
-              <span>Unlock Dashboard</span>
+            <button 
+              type="submit" 
+              className="btn-primary pin-submit-btn"
+            >
+              <span>Unlock</span>
               <Key size={16} />
             </button>
           </div>

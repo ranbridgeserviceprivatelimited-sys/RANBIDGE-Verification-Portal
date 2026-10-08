@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { User, Building2, Hash, Calendar, Laptop, BookOpen, CalendarCheck, RotateCcw, Send } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { User, Building2, Hash, Calendar, Laptop, BookOpen, CalendarCheck, RotateCcw, Send, ShieldCheck, CheckCircle2, Clock } from 'lucide-react';
 import logoImg from '../../assets/logo.jpg';
 
-export default function RegistrationForm({ onSubmitSuccess, showToast }) {
+export default function RegistrationForm({ onSubmitSuccess, masterDump = [], showToast }) {
   const getTodayDateStr = () => new Date().toISOString().split('T')[0];
 
   const [formData, setFormData] = useState({
@@ -14,6 +14,12 @@ export default function RegistrationForm({ onSubmitSuccess, showToast }) {
     workshopName: '',
     workshopDate: getTodayDateStr()
   });
+
+  const matchedMasterEntry = useMemo(() => {
+    if (!formData.rollNumber.trim()) return null;
+    const roll = formData.rollNumber.trim().toUpperCase();
+    return masterDump.find(m => m.rollNumber && m.rollNumber.trim().toUpperCase() === roll);
+  }, [formData.rollNumber, masterDump]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -41,6 +47,11 @@ export default function RegistrationForm({ onSubmitSuccess, showToast }) {
       return;
     }
 
+    const isVerified = Boolean(matchedMasterEntry || masterDump.some(m => 
+      (m.rollNumber && m.rollNumber.trim().toUpperCase() === formData.rollNumber.trim().toUpperCase()) ||
+      (m.fullName && m.fullName.trim().toLowerCase() === formData.fullName.trim().toLowerCase())
+    ));
+
     const newRecord = {
       id: 'REG-' + Math.floor(100000 + Math.random() * 900000),
       fullName: formData.fullName.trim(),
@@ -50,10 +61,22 @@ export default function RegistrationForm({ onSubmitSuccess, showToast }) {
       department: formData.department.trim(),
       workshopName: formData.workshopName.trim(),
       workshopDate: formData.workshopDate,
+      verificationStatus: isVerified ? 'verified' : 'pending',
+      verifiedAt: isVerified ? new Date().toLocaleString() : null,
+      matchedAdminData: matchedMasterEntry || null,
       submittedAt: new Date().toLocaleString()
     };
 
     onSubmitSuccess(newRecord);
+    setFormData({
+      fullName: '',
+      college: '',
+      rollNumber: '',
+      passoutYear: '2026',
+      department: '',
+      workshopName: '',
+      workshopDate: getTodayDateStr()
+    });
   };
 
   return (
@@ -63,11 +86,75 @@ export default function RegistrationForm({ onSubmitSuccess, showToast }) {
           <h2 className="form-title">Registration Form</h2>
           <p className="form-subtitle">Please enter your academic details below.</p>
         </div>
-        <img src={logoImg} alt="RANBIDGE Solutions Logo" style={{ height: '44px', objectFit: 'contain' }} />
       </div>
 
       <form onSubmit={handleSubmit}>
         <div className="form-grid">
+          
+          {/* Live Admin Master Data Verification Callout */}
+          {matchedMasterEntry ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+              border: '1.5px solid #86efac',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.9rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              marginBottom: '0.5rem',
+              animation: 'fadeIn 0.3s ease'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <ShieldCheck size={22} color="#16a34a" style={{ flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: '0.92rem', color: '#14532d', fontWeight: 800 }}>
+                    Verified with Admin Master Portal Data!
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#166534', marginTop: '0.1rem' }}>
+                    Matched Roll Number: <strong>{matchedMasterEntry.rollNumber}</strong> ({matchedMasterEntry.fullName})
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    fullName: matchedMasterEntry.fullName || prev.fullName,
+                    college: matchedMasterEntry.college || prev.college,
+                    department: matchedMasterEntry.department || prev.department,
+                    workshopName: matchedMasterEntry.workshopName || prev.workshopName
+                  }));
+                  if (showToast) showToast('Auto-filled student details from Admin Master Data!');
+                }}
+                style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', background: '#ffffff', color: '#15803d', borderColor: '#86efac', fontWeight: 700 }}
+              >
+                Auto-Fill Details
+              </button>
+            </div>
+          ) : formData.rollNumber.trim().length >= 4 && masterDump.length > 0 ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.65rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '0.5rem',
+              fontSize: '0.82rem',
+              color: '#92400e'
+            }}>
+              <Clock size={16} color="#d97706" style={{ flexShrink: 0 }} />
+              <span>
+                Roll Number <strong>{formData.rollNumber}</strong> is not listed in Admin pre-dumped list yet. Submitting will flag registration as <strong>Pending Admin Verification</strong>.
+              </span>
+            </div>
+          ) : null}
           
           {/* 1. Full Name */}
           <div className="form-group full-width">

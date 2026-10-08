@@ -6,6 +6,7 @@ import PublicSearch from './components/PublicSearch';
 import StudentCertificatePortal from './components/StudentCertificatePortal';
 import AdminPinModal from './components/AdminPinModal';
 import AdminPortalModal from './components/AdminPortalModal';
+import RegistrationSuccessModal from './components/RegistrationSuccessModal';
 import Footer from './components/Footer';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ import {
 
 const STORAGE_KEY = 'ranbidge_registrations';
 const CERTS_STORAGE_KEY = 'ranbidge_certificates';
+const MASTER_DUMP_STORAGE_KEY = 'ranbidge_master_dump';
 
 export default function App() {
   const [records, setRecords] = useState(() => {
@@ -43,11 +45,23 @@ export default function App() {
     }
   });
 
+  const [masterDump, setMasterDump] = useState(() => {
+    try {
+      const saved = localStorage.getItem(MASTER_DUMP_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (err) {
+      console.error('Error reading master dump localStorage:', err);
+      return [];
+    }
+  });
+
   const [activeTab, setActiveTab] = useState('register');
   const [latestRecord, setLatestRecord] = useState(null);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isAdminPortalOpen, setIsAdminPortalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [registeredRecord, setRegisteredRecord] = useState(null);
   const [toasts, setToasts] = useState([]);
 
   // 1. Initial Load: Retrieve certificates from IndexedDB to guarantee state persistence after page refresh
@@ -127,6 +141,56 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // 4. Listen to Firestore master_dump updates & merge state
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      const colRef = collection(db, 'master_dump');
+      unsubscribe = onSnapshot(colRef, (snapshot) => {
+        if (!snapshot.empty) {
+          const fetched = snapshot.docs.map(d => ({
+            firestoreId: d.id,
+            ...d.data()
+          }));
+          setMasterDump(fetched);
+          try {
+            localStorage.setItem(MASTER_DUMP_STORAGE_KEY, JSON.stringify(fetched));
+          } catch (e) {}
+        }
+      }, (err) => {
+        console.warn('Firestore master_dump fallback:', err);
+      });
+    } catch (err) {
+      console.warn('Firebase master_dump fallback:', err);
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // 5. Dynamic Auto-Verification Sync: Auto-verify records when matched with master dump
+  useEffect(() => {
+    if (masterDump.length === 0 || records.length === 0) return;
+
+    const masterSet = new Set(masterDump.map(m => m.rollNumber ? m.rollNumber.trim().toUpperCase() : ''));
+
+    let hasChanges = false;
+    const updatedRecords = records.map(rec => {
+      const rollKey = rec.rollNumber ? rec.rollNumber.trim().toUpperCase() : '';
+      if (masterSet.has(rollKey) && rec.verificationStatus !== 'verified') {
+        hasChanges = true;
+        return {
+          ...rec,
+          verificationStatus: 'verified',
+          verifiedAt: rec.verifiedAt || new Date().toLocaleString()
+        };
+      }
+      return rec;
+    });
+
+    if (hasChanges) {
+      setRecords(updatedRecords);
+    }
+  }, [masterDump]);
+
   // Sync registration records state to localStorage
   useEffect(() => {
     try {
@@ -146,6 +210,126 @@ export default function App() {
     }
   }, [certificates]);
 
+  // Sync master dump state to localStorage
+  useEffect(() => {
+    if (masterDump.length > 0) {
+      try {
+        localStorage.setItem(MASTER_DUMP_STORAGE_KEY, JSON.stringify(masterDump));
+      } catch (err) {}
+    }
+  }, [masterDump]);
+
+  // Master Dump Handlers
+  const handleSaveMasterDump = async (newEntries) => {
+    const existingRolls = new Set(masterDump.map(m => m.rollNumber ? m.rollNumber.trim().toUpperCase() : ''));
+    const filteredNew = newEntries.filter(e => e.rollNumber && !existingRolls.has(e.rollNumber.trim().toUpperCase()));
+
+    if (filteredNew.length === 0) {
+      showToast('ℹ️ All entered roll numbers are already present in the master dump!');
+      return;
+    }
+
+    const updated = [...filteredNew, ...masterDump];
+    setMasterDump(updated);
+    try {
+      localStorage.setItem(MASTER_DUMP_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    try {
+      const colRef = collection(db, 'master_dump');
+      for (const entry of filteredNew) {
+        await addDoc(colRef, entry);
+      }
+    } catch (err) {
+      console.warn('Error saving master dump to Firebase:', err);
+    }
+
+    showToast(`Dumped ${filteredNew.length} master roll number & name record(s)!`);
+  };
+
+  const handleDeleteMasterEntry = async (id) => {
+    const target = masterDump.find(m => m.id === id || m.firestoreId === id);
+    const updated = masterDump.filter(m => m.id !== id && m.firestoreId !== id);
+    setMasterDump(updated);
+    try {
+      localStorage.setItem(MASTER_DUMP_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    if (target && target.firestoreId) {
+      try {
+        await deleteDoc(doc(db, 'master_dump', target.firestoreId));
+      } catch (err) {
+        console.error('Error deleting master dump entry from Firestore:', err);
+      }
+    }
+    showToast('Master dump entry deleted');
+  };
+
+  const handleClearAllMasterDump = async () => {
+    setMasterDump([]);
+    try {
+      localStorage.removeItem(MASTER_DUMP_STORAGE_KEY);
+    } catch (e) {}
+
+    try {
+      const colRef = collection(db, 'master_dump');
+      const snapshot = await getDocs(colRef);
+      const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, 'master_dump', d.id)));
+      await Promise.all(deletePromises);
+    } catch (err) {
+      console.error('Error clearing Firestore master_dump:', err);
+    }
+
+    showToast('All master roll numbers & names dump records cleared');
+  };
+
+  const handleLoadSampleMasterData = async () => {
+    const sampleMaster = [
+      {
+        id: 'DUMP-21CS1084',
+        rollNumber: '21CS1084',
+        fullName: 'Aarav Sharma',
+        college: 'IIT Madras',
+        department: 'Computer Science Engineering',
+        passoutYear: '2026',
+        workshopName: 'AI & Machine Learning Systems',
+        addedAt: new Date().toLocaleString()
+      },
+      {
+        id: 'DUMP-22ECE042',
+        rollNumber: '22ECE042',
+        fullName: 'Priya Ananth',
+        college: 'Anna University',
+        department: 'Electronics & Communication',
+        passoutYear: '2027',
+        workshopName: 'IoT & Embedded Robotics',
+        addedAt: new Date().toLocaleString()
+      },
+      {
+        id: 'DUMP-20ME091',
+        rollNumber: '20ME091',
+        fullName: 'Vikram Reddy',
+        college: 'NIT Trichy',
+        department: 'Mechanical Engineering',
+        passoutYear: '2025',
+        workshopName: 'Cloud Infrastructure & DevOps',
+        addedAt: new Date().toLocaleString()
+      },
+      {
+        id: 'DUMP-23471A4245',
+        rollNumber: '23471A4245',
+        fullName: 'R. Gopinathreddy',
+        college: 'JNTUH College of Engineering',
+        department: 'Artificial Intelligence & Data Science',
+        passoutYear: '2026',
+        workshopName: 'Full Stack Web & AI Systems',
+        addedAt: new Date().toLocaleString()
+      }
+    ];
+
+    await handleSaveMasterDump(sampleMaster);
+  };
+
   // Toast message helper
   const showToast = (message) => {
     const id = Date.now();
@@ -163,9 +347,9 @@ export default function App() {
     };
 
     setRecords(prev => [recordWithTime, ...prev]);
-    setLatestRecord(recordWithTime);
+    setRegisteredRecord(recordWithTime);
+    setIsSuccessModalOpen(true);
     showToast(`Registration completed for ${newRecord.fullName}!`);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
       const colRef = collection(db, 'registrations');
@@ -396,19 +580,11 @@ export default function App() {
         {activeTab === 'register' && (
           <div className="page-view">
             <div id="registrationFormSection">
-              {latestRecord ? (
-                <VerificationCard
-                  record={latestRecord}
-                  certificates={certificates}
-                  onNewRegistration={handleNewRegistration}
-                  showToast={showToast}
-                />
-              ) : (
-                <RegistrationForm
-                  onSubmitSuccess={handleRegistrationSubmit}
-                  showToast={showToast}
-                />
-              )}
+              <RegistrationForm
+                onSubmitSuccess={handleRegistrationSubmit}
+                masterDump={masterDump}
+                showToast={showToast}
+              />
             </div>
           </div>
         )}
@@ -458,11 +634,29 @@ export default function App() {
         onClose={() => setIsAdminPortalOpen(false)}
         records={records}
         certificates={certificates}
+        masterDump={masterDump}
         onDeleteRecord={handleDeleteRecord}
         onClearAllRecords={handleClearAll}
         onLoadSampleData={handleLoadSampleData}
         onSaveCertificates={handleSaveCertificates}
         onDeleteCertificate={handleDeleteCertificate}
+        onSaveMasterDump={handleSaveMasterDump}
+        onDeleteMasterEntry={handleDeleteMasterEntry}
+        onClearAllMasterDump={handleClearAllMasterDump}
+        onLoadSampleMasterData={handleLoadSampleMasterData}
+        showToast={showToast}
+      />
+
+      {/* Registration Success Animated Popup Modal */}
+      <RegistrationSuccessModal
+        isOpen={isSuccessModalOpen}
+        record={registeredRecord}
+        onClose={() => setIsSuccessModalOpen(false)}
+        onGoToCertificates={(rollNumber) => {
+          setIsSuccessModalOpen(false);
+          setLatestRecord(registeredRecord);
+          setActiveTab('check-certs');
+        }}
         showToast={showToast}
       />
     </div>

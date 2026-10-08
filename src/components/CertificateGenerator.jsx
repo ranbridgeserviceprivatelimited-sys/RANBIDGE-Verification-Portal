@@ -11,7 +11,7 @@ export default function CertificateGenerator({ record, showActions = true, onDow
   const collegeName = record?.college || 'Narasaraopeta Engineering College';
   const workshopTitle = record?.workshopName || 'STARTUP & ENTREPRENEURSHIP AND IPR RIGHTS';
   const workshopDate = record?.workshopDate || 'October 7, 2026';
-  const durationText = record?.duration || '3-Day';
+  const durationText = record?.duration || '2-Day';
   const rollNumber = record?.rollNumber || 'REG-2026';
 
   // Draw High-Resolution Certificate on HTML5 Canvas using reference image background
@@ -73,7 +73,7 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(140, 545, 1134, 98);
 
-      // Line 1: "for successfully participating in the 3-Day Workshop on"
+      // Line 1: "for successfully participating in the 2-Day Workshop on"
       const prefixText = 'for successfully participating in the ';
       const durationPart = `${durationText} `;
       const suffixText = 'Workshop on';
@@ -96,7 +96,7 @@ export default function CertificateGenerator({ record, showActions = true, onDow
       ctx.fillStyle = '#1b365d';
       ctx.fillText(prefixText, startX, 576);
 
-      // Draw Duration ("3-Day ")
+      // Draw Duration ("2-Day ")
       ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#1d4ed8';
       ctx.fillText(durationPart, startX + prefixWidth, 576);

@@ -109,8 +109,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
         <div className="submission-card" style={{ animation: 'fadeIn 0.35s ease' }}>
           
           {/* Header Ribbon */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <img src={logoImg} alt="RANBIDGE Solutions Logo" style={{ height: '48px', objectFit: 'contain' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <span style={{
               background: 'var(--success-light)',
               color: 'var(--success)',
