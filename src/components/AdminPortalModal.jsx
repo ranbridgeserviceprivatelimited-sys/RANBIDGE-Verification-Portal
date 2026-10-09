@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Shield, 
   X, 
@@ -12,6 +12,7 @@ import {
   Trash, 
   Award, 
   FileUp, 
+  UploadCloud,
   ArrowLeft, 
   Download, 
   FileText, 
@@ -49,6 +50,8 @@ export default function AdminPortalModal({
   records,
   certificates,
   masterDump = [],
+  portalSettings = {},
+  onSavePortalSettings,
   onDeleteRecord,
   onVerifyRecord,
   onAddRecord,
@@ -62,6 +65,88 @@ export default function AdminPortalModal({
   onLoadSampleMasterData,
   showToast
 }) {
+  const [isFormSettingsModalOpen, setIsFormSettingsModalOpen] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState('colleges');
+  const [newCollegeInput, setNewCollegeInput] = useState('');
+  const [newWorkshopInput, setNewWorkshopInput] = useState('');
+  const [newDepartmentInput, setNewDepartmentInput] = useState('');
+
+  const currentColleges = portalSettings.colleges || [];
+  const currentWorkshops = portalSettings.workshops || [];
+  const currentDepartments = portalSettings.departments || [];
+
+  const handleAddCollege = (e) => {
+    e.preventDefault();
+    const val = newCollegeInput.trim();
+    if (!val) return;
+    if (currentColleges.map(c => c.toLowerCase()).includes(val.toLowerCase())) {
+      if (showToast) showToast('College already exists in list', 'info');
+      return;
+    }
+    const updated = [...currentColleges, val];
+    if (onSavePortalSettings) {
+      onSavePortalSettings({ ...portalSettings, colleges: updated });
+    }
+    setNewCollegeInput('');
+    if (showToast) showToast(`Added "${val}" to Colleges list`, 'success');
+  };
+
+  const handleDeleteCollege = (collegeName) => {
+    const updated = currentColleges.filter(c => c !== collegeName);
+    if (onSavePortalSettings) {
+      onSavePortalSettings({ ...portalSettings, colleges: updated });
+    }
+    if (showToast) showToast(`Removed "${collegeName}"`, 'info');
+  };
+
+  const handleAddWorkshop = (e) => {
+    e.preventDefault();
+    const val = newWorkshopInput.trim();
+    if (!val) return;
+    if (currentWorkshops.map(w => w.toLowerCase()).includes(val.toLowerCase())) {
+      if (showToast) showToast('Workshop title already exists in list', 'info');
+      return;
+    }
+    const updated = [...currentWorkshops, val];
+    if (onSavePortalSettings) {
+      onSavePortalSettings({ ...portalSettings, workshops: updated });
+    }
+    setNewWorkshopInput('');
+    if (showToast) showToast(`Added "${val}" to Workshop titles list`, 'success');
+  };
+
+  const handleDeleteWorkshop = (workshopTitle) => {
+    const updated = currentWorkshops.filter(w => w !== workshopTitle);
+    if (onSavePortalSettings) {
+      onSavePortalSettings({ ...portalSettings, workshops: updated });
+    }
+    if (showToast) showToast(`Removed "${workshopTitle}"`, 'info');
+  };
+
+  const handleAddDepartment = (e) => {
+    e.preventDefault();
+    const val = newDepartmentInput.trim();
+    if (!val) return;
+    if (currentDepartments.map(d => d.toLowerCase()).includes(val.toLowerCase())) {
+      if (showToast) showToast('Department already exists in list', 'info');
+      return;
+    }
+    const updated = [...currentDepartments, val];
+    if (onSavePortalSettings) {
+      onSavePortalSettings({ ...portalSettings, departments: updated });
+    }
+    setNewDepartmentInput('');
+    if (showToast) showToast(`Added "${val}" to Departments list`, 'success');
+  };
+
+  const handleDeleteDepartment = (deptName) => {
+    const updated = currentDepartments.filter(d => d !== deptName);
+    if (onSavePortalSettings) {
+      onSavePortalSettings({ ...portalSettings, departments: updated });
+    }
+    if (showToast) showToast(`Removed "${deptName}"`, 'info');
+  };
+
   const [adminTab, setAdminTab] = useState(() => {
     try {
       return sessionStorage.getItem('ranbidge_admin_tab') || 'registrations';
@@ -118,6 +203,105 @@ export default function AdminPortalModal({
 
   const [selectedPreviewCert, setSelectedPreviewCert] = useState(null);
   const [selectedGeneratedCertRecord, setSelectedGeneratedCertRecord] = useState(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Folder File Upload Ref & Direct Upload Handler
+  const folderFileInputRef = useRef(null);
+
+  const processAndUploadFiles = (filesList, targetFolder = openedFolderPage) => {
+    const files = Array.from(filesList || []);
+    if (files.length === 0) return;
+
+    const folderNameStr = targetFolder ? targetFolder.name : 'Root Dashboard';
+    const folderIdStr = targetFolder ? targetFolder.id : null;
+
+    const newCerts = [];
+    let completed = 0;
+
+    const parseMeta = (filename) => {
+      const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+      const parts = nameWithoutExt.split(/[-_]/);
+      let rollNumber = '';
+      let studentName = '';
+      if (parts.length >= 1 && /^[A-Z0-9]+$/i.test(parts[0])) {
+        rollNumber = parts[0].toUpperCase();
+        studentName = parts.slice(1).join(' ').replace(/\s+/g, ' ').trim();
+      } else {
+        studentName = nameWithoutExt.replace(/[-_]/g, ' ').trim();
+      }
+      return { rollNumber, studentName };
+    };
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const meta = parseMeta(file.name);
+        const fileExt = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+        const isPdf = fileExt === '.pdf';
+        const isImg = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(fileExt);
+        const fileType = isPdf ? 'pdf' : isImg ? 'image' : 'document';
+
+        newCerts.push({
+          id: 'cert-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          fileName: file.name,
+          fileType: fileType,
+          fileData: evt.target.result,
+          rollNumber: meta.rollNumber || 'N/A',
+          studentName: meta.studentName || file.name,
+          college: folderNameStr,
+          workshopName: folderNameStr,
+          folderId: folderIdStr,
+          folderName: folderNameStr,
+          uploadedAt: new Date().toLocaleString()
+        });
+
+        completed++;
+        if (completed === files.length) {
+          if (onSaveCertificates && newCerts.length > 0) {
+            onSaveCertificates(newCerts);
+          }
+          if (showToast) {
+            showToast(`📤 Stored ${files.length} certificate file(s) inside "${folderNameStr}"!`);
+          }
+          if (folderFileInputRef.current) {
+            folderFileInputRef.current.value = '';
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+    setIsDraggingOver(false);
+  };
+
+  const handleDropFiles = (e, targetFolder = openedFolderPage) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      processAndUploadFiles(files, targetFolder);
+    }
+  };
+
+  const handleDirectFolderUpload = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      processAndUploadFiles(files, openedFolderPage);
+    }
+  };
 
   // File Explorer Custom Folders & Directory Drive State
   const [customFolders, setCustomFolders] = useState(() => {
@@ -168,6 +352,31 @@ export default function AdminPortalModal({
 
   // Selected Student Detail Modal State
   const [viewingStudentDetail, setViewingStudentDetail] = useState(null);
+
+  // Safe timestamp & value formatters to prevent React object-as-child crashes
+  const formatTimestamp = (val) => {
+    if (!val) return 'N/A';
+    if (typeof val === 'string' || typeof val === 'number') return String(val);
+    if (val && typeof val.toDate === 'function') {
+      try { return val.toDate().toLocaleString(); } catch (e) {}
+    }
+    if (val && typeof val.seconds === 'number') {
+      try { return new Date(val.seconds * 1000).toLocaleString(); } catch (e) {}
+    }
+    if (val instanceof Date) return val.toLocaleString();
+    return 'N/A';
+  };
+
+  const safeVal = (val, fallback = 'N/A') => {
+    if (val === null || val === undefined) return fallback;
+    if (typeof val === 'string') return val || fallback;
+    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    if (typeof val === 'object') {
+      if (val.seconds !== undefined) return formatTimestamp(val);
+      try { return JSON.stringify(val); } catch (e) { return fallback; }
+    }
+    return String(val) || fallback;
+  };
 
   // Settings Popover State
   const [isSettingsPopoverOpen, setIsSettingsPopoverOpen] = useState(false);
@@ -855,7 +1064,10 @@ export default function AdminPortalModal({
   const openedFolderCertificates = useMemo(() => {
     if (!openedFolderPage) return [];
     const key = openedFolderPage.name.toLowerCase().trim();
+    const folderIdStr = String(openedFolderPage.id || '').toLowerCase().trim();
     return certificates.filter(c => 
+      (c.folderId && String(c.folderId).toLowerCase().trim() === folderIdStr) ||
+      (c.folderName && c.folderName.toLowerCase().trim() === key) ||
       (c.college && c.college.toLowerCase().trim() === key) ||
       (c.workshopName && c.workshopName.toLowerCase().trim() === key) ||
       (c.studentName && c.studentName.toLowerCase().includes(key)) ||
@@ -1019,7 +1231,9 @@ export default function AdminPortalModal({
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (selectedGeneratedCertRecord) {
+        if (viewingStudentDetail) {
+          setViewingStudentDetail(null);
+        } else if (selectedGeneratedCertRecord) {
           setSelectedGeneratedCertRecord(null);
         } else if (selectedPreviewCert) {
           setSelectedPreviewCert(null);
@@ -1037,7 +1251,7 @@ export default function AdminPortalModal({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedCollegeName, selectedPreviewCert, selectedGeneratedCertRecord, isUsersDirectoryOpen, openedFolderPage, onClose]);
+  }, [isOpen, selectedCollegeName, selectedPreviewCert, selectedGeneratedCertRecord, viewingStudentDetail, isUsersDirectoryOpen, openedFolderPage, onClose]);
 
   // College breakdown analysis from both records and dumped certificates
   const collegeBreakdown = useMemo(() => {
@@ -1884,6 +2098,14 @@ export default function AdminPortalModal({
                   />
                 </div>
                 <div className="admin-actions">
+                  <button 
+                    className="btn-secondary btn-sm" 
+                    onClick={() => setIsFormSettingsModalOpen(true)}
+                    title="Manage dropdown options for College Name, Workshop Title, and Department"
+                    style={{ background: '#7c3aed', borderColor: '#6d28d9', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <Settings size={15} /> Form Dropdowns
+                  </button>
                   <button 
                     className="btn-primary btn-sm" 
                     onClick={() => setIsUsersDirectoryOpen(true)}
@@ -3069,7 +3291,45 @@ export default function AdminPortalModal({
       {/* DEDICATED OPENED FOLDER INSPECTOR PAGE MODAL */}
       {openedFolderPage && (
         <div className="admin-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1280, padding: 0 }} onClick={() => setOpenedFolderPage(null)}>
-          <div className="admin-modal-container" style={{ maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1.75rem 2rem', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+          <div
+            className="admin-modal-container"
+            style={{ position: 'relative', maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1.75rem 2rem', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDropFiles(e, openedFolderPage)}
+          >
+            {/* Drag & Drop Fullscreen Overlay Visual */}
+            {isDraggingOver && (
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(15, 23, 42, 0.9)',
+                  backdropFilter: 'blur(8px)',
+                  zIndex: 9999,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  border: '4px dashed #60a5fa',
+                  padding: '2rem',
+                  textAlign: 'center',
+                  pointerEvents: 'none'
+                }}
+              >
+                <div style={{ background: '#2563eb', padding: '1.5rem', borderRadius: '50%', marginBottom: '1.25rem', boxShadow: '0 0 35px rgba(37,99,235,0.7)' }}>
+                  <UploadCloud size={56} color="#ffffff" />
+                </div>
+                <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, color: '#ffffff' }}>
+                  Drop Certificates & Files Here!
+                </h2>
+                <p style={{ fontSize: '1.05rem', color: '#93c5fd', marginTop: '0.5rem', maxWidth: '520px' }}>
+                  Files will be automatically saved and stored inside <strong>"{openedFolderPage.name}"</strong> and displayed on this page immediately!
+                </p>
+              </div>
+            )}
             
             {/* Header Breadcrumb Banner */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -3102,6 +3362,25 @@ export default function AdminPortalModal({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <input
+                  type="file"
+                  ref={folderFileInputRef}
+                  style={{ display: 'none' }}
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                  onChange={handleDirectFolderUpload}
+                />
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => folderFileInputRef.current?.click()}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 0.75rem', background: '#8b5cf6', borderColor: '#7c3aed', borderRadius: 'var(--radius-md)' }}
+                  title={`Upload Files / Certificates into "${openedFolderPage.name}"`}
+                >
+                  <UploadCloud size={18} />
+                </button>
+
                 <button
                   type="button"
                   className="btn-secondary"
@@ -3407,12 +3686,149 @@ export default function AdminPortalModal({
               </div>
             )}
 
-            {/* Empty State if neither sub-folders nor records exist */}
-            {openedFolderSubFolders.length === 0 && openedFolderRecords.length === 0 && (
-              <div className="admin-empty-state">
-                <FolderOpen size={48} />
-                <h3>Empty Folder Directory</h3>
-                <p>There are no student registrations or sub-folders linked to "{openedFolderPage.name}".</p>
+            {/* Uploaded Certificates & Files Grid Section */}
+            {openedFolderCertificates.length > 0 && (
+              <div style={{ marginBottom: '1.5rem', marginTop: openedFolderSubFolders.length > 0 ? '1.25rem' : '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Award color="#2563eb" size={17} /> Uploaded Certificates & Files ({openedFolderCertificates.length})
+                  </h4>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                  {openedFolderCertificates.map((cert) => {
+                    const isImg = cert.fileType === 'image' || (cert.fileData && cert.fileData.startsWith('data:image'));
+                    const isPdf = cert.fileType === 'pdf' || (cert.fileName && cert.fileName.toLowerCase().endsWith('.pdf'));
+
+                    return (
+                      <div
+                        key={cert.id}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '10px',
+                          padding: '0.75rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                          position: 'relative'
+                        }}
+                      >
+                        <div>
+                          <div
+                            onClick={() => setSelectedPreviewCert(cert)}
+                            style={{
+                              height: '110px',
+                              background: '#f8fafc',
+                              borderRadius: '7px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              marginBottom: '0.6rem',
+                              cursor: 'pointer',
+                              border: '1px solid #e2e8f0'
+                            }}
+                          >
+                            {isImg ? (
+                              <img src={cert.fileData} alt={cert.fileName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : isPdf ? (
+                              <div style={{ textAlign: 'center', color: '#dc2626' }}>
+                                <FileText size={38} />
+                                <div style={{ fontSize: '0.7rem', fontWeight: 800, marginTop: '0.2rem', textTransform: 'uppercase' }}>PDF Document</div>
+                              </div>
+                            ) : (
+                              <div style={{ textAlign: 'center', color: '#2563eb' }}>
+                                <Award size={38} />
+                                <div style={{ fontSize: '0.7rem', fontWeight: 800, marginTop: '0.2rem' }}>Certificate File</div>
+                              </div>
+                            )}
+                          </div>
+
+                          <h5
+                            title={cert.fileName}
+                            style={{
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              color: 'var(--text-main)',
+                              margin: '0 0 0.3rem 0',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}
+                          >
+                            {cert.fileName}
+                          </h5>
+
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            {cert.studentName && cert.studentName !== cert.fileName && (
+                              <span>👤 {cert.studentName}</span>
+                            )}
+                            {cert.rollNumber && cert.rollNumber !== 'N/A' && (
+                              <span>🆔 <code>{cert.rollNumber}</code></span>
+                            )}
+                            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>📅 {cert.uploadedAt || 'Recently'}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid #f1f5f9' }}>
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() => setSelectedPreviewCert(cert)}
+                            style={{ flex: 1, padding: '0.25rem', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}
+                            title="Preview Certificate File"
+                          >
+                            👁️ View
+                          </button>
+                          {cert.fileData && (
+                            <a
+                              href={cert.fileData}
+                              download={cert.fileName}
+                              className="btn-secondary btn-sm"
+                              style={{ padding: '0.25rem 0.4rem', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}
+                              title="Download File"
+                            >
+                              <Download size={13} />
+                            </a>
+                          )}
+                          {onDeleteCertificate && (
+                            <button
+                              type="button"
+                              className="btn-action-del"
+                              onClick={() => {
+                                if (window.confirm(`Delete certificate "${cert.fileName}"?`)) {
+                                  onDeleteCertificate(cert.id);
+                                }
+                              }}
+                              style={{ padding: '0.25rem 0.4rem', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', cursor: 'pointer' }}
+                              title="Delete Certificate File"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Empty State if neither sub-folders, certificates, nor records exist */}
+            {openedFolderSubFolders.length === 0 && openedFolderCertificates.length === 0 && openedFolderRecords.length === 0 && (
+              <div
+                className="admin-empty-state"
+                onClick={() => folderFileInputRef.current?.click()}
+                style={{ cursor: 'pointer', border: '2px dashed #cbd5e1', borderRadius: '12px', padding: '3rem 1.5rem', background: '#f8fafc', transition: 'all 0.2s ease' }}
+              >
+                <UploadCloud size={48} color="var(--primary)" />
+                <h3 style={{ marginTop: '0.75rem' }}>Drag & Drop Certificates / Files Here</h3>
+                <p>Or click anywhere in this box to upload certificates directly into "{openedFolderPage.name}".</p>
+                <button type="button" className="btn-primary" style={{ marginTop: '0.75rem', background: '#8b5cf6', borderColor: '#7c3aed', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <UploadCloud size={16} /> Choose Files to Upload
+                </button>
               </div>
             )}
 
@@ -3701,8 +4117,8 @@ export default function AdminPortalModal({
 
       {/* STUDENT REGISTRATION PROFILE DETAILS MODAL */}
       {viewingStudentDetail && (
-        <div className="admin-modal-overlay" style={{ zIndex: 1350 }} onClick={() => setViewingStudentDetail(null)}>
-          <div className="pin-modal-container" style={{ maxWidth: '850px', width: '92%', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal-overlay" style={{ zIndex: 1400 }} onClick={() => setViewingStudentDetail(null)}>
+          <div className="admin-modal-container" style={{ maxWidth: '850px', width: '92%', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem', background: '#ffffff', color: 'var(--text-main)', borderRadius: 'var(--radius-xl)', boxShadow: '0 25px 60px rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
             <button className="btn-icon-close pin-close-pos" onClick={() => setViewingStudentDetail(null)} title="Close Details (Esc)">
               <X size={20} />
             </button>
@@ -3725,10 +4141,10 @@ export default function AdminPortalModal({
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                      {viewingStudentDetail.fullName}
+                      {safeVal(viewingStudentDetail.fullName || viewingStudentDetail.studentName || viewingStudentDetail.name, 'Participant Details')}
                     </h3>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>
-                      Registration ID: <code style={{ background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{viewingStudentDetail.id}</code>
+                      Registration ID: <code style={{ background: '#f1f5f9', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{safeVal(viewingStudentDetail.id || viewingStudentDetail.rollNumber, 'N/A')}</code>
                     </p>
                   </div>
                 </div>
@@ -3784,7 +4200,7 @@ export default function AdminPortalModal({
                   Roll Number
                 </span>
                 <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace' }}>
-                  {viewingStudentDetail.rollNumber || 'N/A'}
+                  {safeVal(viewingStudentDetail.rollNumber, 'N/A')}
                 </span>
               </div>
 
@@ -3793,7 +4209,7 @@ export default function AdminPortalModal({
                   College / Institution
                 </span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  {viewingStudentDetail.college || 'N/A'}
+                  {safeVal(viewingStudentDetail.college, 'N/A')}
                 </span>
               </div>
 
@@ -3802,7 +4218,7 @@ export default function AdminPortalModal({
                   Department / Branch
                 </span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  {viewingStudentDetail.department || 'N/A'}
+                  {safeVal(viewingStudentDetail.department, 'N/A')}
                 </span>
               </div>
 
@@ -3811,7 +4227,7 @@ export default function AdminPortalModal({
                   Passout Year
                 </span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  {viewingStudentDetail.passoutYear || 'N/A'}
+                  {safeVal(viewingStudentDetail.passoutYear, 'N/A')}
                 </span>
               </div>
 
@@ -3820,7 +4236,7 @@ export default function AdminPortalModal({
                   Event / Workshop
                 </span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>
-                  {viewingStudentDetail.workshopName || 'N/A'}
+                  {safeVal(viewingStudentDetail.workshopName, 'N/A')}
                 </span>
               </div>
 
@@ -3829,7 +4245,7 @@ export default function AdminPortalModal({
                   Event Date
                 </span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                  {viewingStudentDetail.workshopDate || 'N/A'}
+                  {safeVal(viewingStudentDetail.workshopDate, 'N/A')}
                 </span>
               </div>
 
@@ -3838,7 +4254,7 @@ export default function AdminPortalModal({
                   Submitted Timestamp
                 </span>
                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                  {viewingStudentDetail.submittedAt || (viewingStudentDetail.timestamp ? new Date(viewingStudentDetail.timestamp).toLocaleString() : 'N/A')}
+                  {formatTimestamp(viewingStudentDetail.submittedAt || viewingStudentDetail.timestamp)}
                 </span>
               </div>
 
@@ -3848,7 +4264,7 @@ export default function AdminPortalModal({
                     Verified Timestamp
                   </span>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#166534' }}>
-                    {viewingStudentDetail.verifiedAt}
+                    {formatTimestamp(viewingStudentDetail.verifiedAt)}
                   </span>
                 </div>
               )}
@@ -3902,6 +4318,374 @@ export default function AdminPortalModal({
               >
                 <Trash size={16} />
                 <span>Delete Record</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Form Dropdowns & Directory Options Manager Modal */}
+      {isFormSettingsModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsFormSettingsModalOpen(false)}>
+          <div 
+            className="modal-content" 
+            onClick={e => e.stopPropagation()} 
+            style={{ 
+              maxWidth: '750px', 
+              width: '95%', 
+              maxHeight: '90vh', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              padding: '0', 
+              overflow: 'hidden',
+              borderRadius: 'var(--radius-lg)'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  padding: '0.5rem',
+                  borderRadius: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Settings size={22} color="#a78bfa" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: '#ffffff' }}>
+                    Student Form Options Manager
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', opacity: 0.85, color: '#c7d2fe' }}>
+                    Configure pre-populated options for College Name, Workshop Title, and Department dropdowns
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsFormSettingsModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ffffff',
+                  opacity: 0.8,
+                  cursor: 'pointer',
+                  padding: '0.35rem',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseOver={e => e.currentTarget.style.opacity = '1'}
+                onMouseOut={e => e.currentTarget.style.opacity = '0.8'}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Navigation Tabs */}
+            <div style={{
+              display: 'flex',
+              background: '#f8fafc',
+              borderBottom: '1px solid var(--border-color)',
+              padding: '0 1.25rem'
+            }}>
+              <button
+                onClick={() => setActiveSettingsTab('colleges')}
+                style={{
+                  padding: '0.85rem 1.25rem',
+                  border: 'none',
+                  background: 'transparent',
+                  borderBottom: activeSettingsTab === 'colleges' ? '3px solid #6366f1' : '3px solid transparent',
+                  color: activeSettingsTab === 'colleges' ? '#4f46e5' : 'var(--text-muted)',
+                  fontWeight: activeSettingsTab === 'colleges' ? 700 : 500,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Building size={16} />
+                <span>Colleges / Institutes ({currentColleges.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSettingsTab('workshops')}
+                style={{
+                  padding: '0.85rem 1.25rem',
+                  border: 'none',
+                  background: 'transparent',
+                  borderBottom: activeSettingsTab === 'workshops' ? '3px solid #6366f1' : '3px solid transparent',
+                  color: activeSettingsTab === 'workshops' ? '#4f46e5' : 'var(--text-muted)',
+                  fontWeight: activeSettingsTab === 'workshops' ? 700 : 500,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Award size={16} />
+                <span>Workshop Titles ({currentWorkshops.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSettingsTab('departments')}
+                style={{
+                  padding: '0.85rem 1.25rem',
+                  border: 'none',
+                  background: 'transparent',
+                  borderBottom: activeSettingsTab === 'departments' ? '3px solid #6366f1' : '3px solid transparent',
+                  color: activeSettingsTab === 'departments' ? '#4f46e5' : 'var(--text-muted)',
+                  fontWeight: activeSettingsTab === 'departments' ? 700 : 500,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <GraduationCap size={16} />
+                <span>Departments ({currentDepartments.length})</span>
+              </button>
+            </div>
+
+            {/* Modal Body Content */}
+            <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+              {/* COLLEGES TAB */}
+              {activeSettingsTab === 'colleges' && (
+                <div>
+                  <form onSubmit={handleAddCollege} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Add new college / institute name..."
+                      value={newCollegeInput}
+                      onChange={e => setNewCollegeInput(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <button type="submit" className="btn-primary" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
+                      <Plus size={16} /> Add College
+                    </button>
+                  </form>
+
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                    PRE-SET COLLEGES & INSTITUTES ({currentColleges.length}):
+                  </div>
+
+                  {currentColleges.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: 'var(--radius-md)' }}>
+                      No colleges added yet. Use the input above to add college names.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '320px', overflowY: 'auto' }}>
+                      {currentColleges.map((col, idx) => (
+                        <div 
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.65rem 0.9rem',
+                            background: '#f8fafc',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: '0.9rem',
+                            color: 'var(--text-main)'
+                          }}
+                        >
+                          <span style={{ fontWeight: 500 }}>{col}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCollege(col)}
+                            title="Remove college from list"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              padding: '0.25rem',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* WORKSHOPS TAB */}
+              {activeSettingsTab === 'workshops' && (
+                <div>
+                  <form onSubmit={handleAddWorkshop} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Add new workshop title..."
+                      value={newWorkshopInput}
+                      onChange={e => setNewWorkshopInput(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <button type="submit" className="btn-primary" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
+                      <Plus size={16} /> Add Workshop
+                    </button>
+                  </form>
+
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                    PRE-SET WORKSHOP TITLES ({currentWorkshops.length}):
+                  </div>
+
+                  {currentWorkshops.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: 'var(--radius-md)' }}>
+                      No workshop titles added yet. Use the input above to add workshop titles.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '320px', overflowY: 'auto' }}>
+                      {currentWorkshops.map((w, idx) => (
+                        <div 
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.65rem 0.9rem',
+                            background: '#f8fafc',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: '0.9rem',
+                            color: 'var(--text-main)'
+                          }}
+                        >
+                          <span style={{ fontWeight: 500 }}>{w}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteWorkshop(w)}
+                            title="Remove workshop title from list"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              padding: '0.25rem',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* DEPARTMENTS TAB */}
+              {activeSettingsTab === 'departments' && (
+                <div>
+                  <form onSubmit={handleAddDepartment} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Add new department name (e.g., CSE, ECE)..."
+                      value={newDepartmentInput}
+                      onChange={e => setNewDepartmentInput(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <button type="submit" className="btn-primary" style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
+                      <Plus size={16} /> Add Department
+                    </button>
+                  </form>
+
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                    PRE-SET DEPARTMENTS ({currentDepartments.length}):
+                  </div>
+
+                  {currentDepartments.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: 'var(--radius-md)' }}>
+                      No departments added yet. Use the input above to add department names.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '320px', overflowY: 'auto' }}>
+                      {currentDepartments.map((dept, idx) => (
+                        <div 
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.65rem 0.9rem',
+                            background: '#f8fafc',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: '0.9rem',
+                            color: 'var(--text-main)'
+                          }}
+                        >
+                          <span style={{ fontWeight: 500 }}>{dept}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDepartment(dept)}
+                            title="Remove department from list"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              padding: '0.25rem',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              background: '#f8fafc',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              justify: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Changes are automatically saved and immediately available in the Student Registration Form dropdowns.
+              </span>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setIsFormSettingsModalOpen(false)}
+                style={{ padding: '0.5rem 1.25rem' }}
+              >
+                Done
               </button>
             </div>
           </div>

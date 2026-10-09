@@ -23,79 +23,146 @@ import CertificateGenerator from './CertificateGenerator';
 import CertificateDownloadBox from './CertificateDownloadBox';
 import logoImg from '../../assets/logo.jpg';
 
-export default function StudentCertificatePortal({ records = [], certificates = [], initialSearchQuery = '', onNewRegistration, showToast }) {
+export default function StudentCertificatePortal({ records = [], certificates = [], masterDump = [], initialSearchQuery = '', onNewRegistration, showToast }) {
+  const isRollOrIdQuery = (str) => Boolean(str && (str.startsWith('REG-') || str.startsWith('CERT-') || /^[A-Za-z0-9]+$/i.test(str.trim()) && /\d/.test(str)));
+
   // Form Details State: Name, College, Department/Branch, Roll Number, Event/Workshop
   const [filterForm, setFilterForm] = useState({
-    fullName: initialSearchQuery || '',
+    fullName: initialSearchQuery && !isRollOrIdQuery(initialSearchQuery) ? initialSearchQuery : '',
     college: '',
     department: '',
-    rollNumber: initialSearchQuery || '',
+    rollNumber: initialSearchQuery && isRollOrIdQuery(initialSearchQuery) ? initialSearchQuery : '',
     workshopName: ''
   });
 
-  const [hasSearched, setHasSearched] = useState(Boolean(initialSearchQuery));
-  const [matchedRecords, setMatchedRecords] = useState(() => {
-    if (!initialSearchQuery) return [];
-    const q = initialSearchQuery.trim().toLowerCase();
-    return records.filter(r => 
-      (r.id && r.id.toLowerCase() === q) ||
-      (r.rollNumber && r.rollNumber.toLowerCase().includes(q)) ||
-      (r.fullName && r.fullName.toLowerCase().includes(q))
-    );
+  const [activeFilters, setActiveFilters] = useState(() => {
+    if (!initialSearchQuery) return null;
+    if (isRollOrIdQuery(initialSearchQuery)) {
+      return { fullName: '', college: '', department: '', rollNumber: initialSearchQuery.trim().toLowerCase(), workshopName: '' };
+    }
+    return { fullName: initialSearchQuery.trim().toLowerCase(), college: '', department: '', rollNumber: '', workshopName: '' };
   });
 
-  // Unique College Options
+  // Combine all student records from Registrations, Uploaded Certificates, & Admin Master Data Dump
+  const allSearchableRecords = useMemo(() => {
+    const combined = [];
+    const seenRolls = new Set();
+    const seenIds = new Set();
+
+    // 1. First include all student registrations
+    (records || []).forEach(r => {
+      const recId = r.id || 'REG-' + Math.floor(100000 + Math.random() * 900000);
+      combined.push({
+        id: recId,
+        fullName: r.fullName || 'N/A',
+        college: r.college || 'N/A',
+        department: r.department || 'N/A',
+        rollNumber: r.rollNumber || 'N/A',
+        workshopName: r.workshopName || 'N/A',
+        workshopDate: r.workshopDate || r.submittedAt || '2026',
+        verificationStatus: r.verificationStatus || 'verified',
+        source: 'registration',
+        rawRecord: r
+      });
+      if (r.rollNumber) seenRolls.add(r.rollNumber.trim().toUpperCase());
+      seenIds.add(recId.toLowerCase());
+    });
+
+    // 2. Include standalone certificates uploaded by admin
+    (certificates || []).forEach(c => {
+      const rollKey = (c.rollNumber || '').trim().toUpperCase();
+      const certId = (c.id || c.certificateId || '').toLowerCase();
+      if ((!rollKey || !seenRolls.has(rollKey)) && (!certId || !seenIds.has(certId))) {
+        combined.push({
+          id: c.id || c.certificateId || 'CERT-' + Math.floor(100000 + Math.random() * 900000),
+          fullName: c.studentName || c.fullName || 'N/A',
+          college: c.college || c.collegeName || c.institution || 'N/A',
+          department: c.department || c.dept || 'N/A',
+          rollNumber: c.rollNumber || 'N/A',
+          workshopName: c.workshopName || c.eventName || 'N/A',
+          workshopDate: c.issueDate || c.date || '2026',
+          verificationStatus: 'verified',
+          source: 'certificate',
+          rawRecord: c
+        });
+        if (rollKey) seenRolls.add(rollKey);
+        if (certId) seenIds.add(certId);
+      }
+    });
+
+    // 3. Include entries from Admin Master Dump
+    (masterDump || []).forEach(m => {
+      const rollKey = (m.rollNumber || '').trim().toUpperCase();
+      const mstId = (m.id || '').toLowerCase();
+      if ((!rollKey || !seenRolls.has(rollKey)) && (!mstId || !seenIds.has(mstId))) {
+        combined.push({
+          id: m.id || 'MST-' + Math.floor(100000 + Math.random() * 900000),
+          fullName: m.fullName || 'N/A',
+          college: m.college || m.collegeName || m.institution || 'N/A',
+          department: m.department || m.dept || 'N/A',
+          rollNumber: m.rollNumber || 'N/A',
+          workshopName: m.workshopName || m.eventName || m.title || 'N/A',
+          workshopDate: m.workshopDate || '2026',
+          verificationStatus: 'verified',
+          source: 'master',
+          rawRecord: m
+        });
+        if (rollKey) seenRolls.add(rollKey);
+        if (mstId) seenIds.add(mstId);
+      }
+    });
+
+    return combined;
+  }, [records, certificates, masterDump]);
+
+  const [hasSearched, setHasSearched] = useState(Boolean(initialSearchQuery));
+
+  const matchedRecords = useMemo(() => {
+    if (!hasSearched || !activeFilters) return [];
+    const { fullName, rollNumber, college, department, workshopName } = activeFilters;
+
+    return allSearchableRecords.filter(r => {
+      const matchName = !fullName || (r.fullName && r.fullName.toLowerCase().includes(fullName));
+      const matchRoll = !rollNumber || (r.rollNumber && r.rollNumber.toLowerCase().includes(rollNumber)) || (r.id && r.id.toLowerCase().includes(rollNumber));
+      const matchCol = !college || (r.college && r.college.toLowerCase().includes(college));
+      const matchDept = !department || (r.department && r.department.toLowerCase().includes(department));
+      const matchWk = !workshopName || (r.workshopName && r.workshopName.toLowerCase().includes(workshopName));
+
+      return matchName && matchRoll && matchCol && matchDept && matchWk;
+    });
+  }, [allSearchableRecords, hasSearched, activeFilters]);
+
+  // Standardized College Options
   const collegeOptions = useMemo(() => {
-    const set = new Set([
+    return [
       "Narasaraopeta Engineering College",
-      "Narasaraopeta engineering college",
-      "Vasireddy Venkatadri Institute of Technology",
-      "RVR & JC College of Engineering",
-      "JNTUK College of Engineering",
-      "JNTUH College of Engineering",
-      "IIT Madras",
-      "NIT Trichy",
-      "Anna University"
-    ]);
-    records.forEach(r => { if (r.college) set.add(r.college.trim()); });
-    certificates.forEach(c => { if (c.college) set.add(c.college.trim()); });
-    return Array.from(set).sort();
-  }, [records, certificates]);
+      "Tirumala Engineering College",
+      "AM Reddy College"
+    ];
+  }, []);
 
-  // Unique Branch / Department Options
+  // Standardized Branch / Department Options
   const departmentOptions = useMemo(() => {
-    const set = new Set([
-      "Computer Science Engineering",
-      "Computer Science and Engineering",
-      "Computer Science and Technology",
-      "Information Technology",
-      "Electronics and Communication Engineering",
-      "Electrical and Electronics Engineering",
-      "Artificial Intelligence & Data Science",
-      "Artificial Intelligence & Machine Learning",
+    return [
+      "Computer Science & Engineering",
+      "Computer Science (Artificial Intelligence & Machine Learning)",
+      "Computer Science (Artificial Intelligence)",
+      "Computer Science (Cyber Security)",
+      "Computer Science (Data Science)",
+      "Civil Engineering",
+      "Electronics & Communication Engineering (ECE)",
+      "Electrical & Electronics Engineering (EEE)",
       "Mechanical Engineering",
-      "Civil Engineering"
-    ]);
-    records.forEach(r => { if (r.department) set.add(r.department.trim()); });
-    certificates.forEach(c => { if (c.department) set.add(c.department.trim()); });
-    return Array.from(set).sort();
-  }, [records, certificates]);
+      "Pharmacy"
+    ];
+  }, []);
 
-  // Unique Event / Workshop Options
+  // Standardized Event / Workshop Options
   const workshopOptions = useMemo(() => {
-    const set = new Set([
-      "Idea to MVP",
-      "Full Stack Web & AI Systems",
-      "AI & Machine Learning Systems",
-      "IoT & Embedded Robotics",
-      "Cloud Infrastructure & DevOps",
-      "Cyber Security & Ethical Hacking",
-      "Python & Data Science Bootcamp"
-    ]);
-    records.forEach(r => { if (r.workshopName) set.add(r.workshopName.trim()); });
-    certificates.forEach(c => { if (c.workshopName) set.add(c.workshopName.trim()); });
-    return Array.from(set).sort();
-  }, [records, certificates]);
+    return [
+      "Idea to MVP - Entrepreneurship & Startups"
+    ];
+  }, []);
 
   const handleSearch = (e) => {
     if (e) e.preventDefault();
@@ -110,18 +177,19 @@ export default function StudentCertificatePortal({ records = [], certificates = 
       return;
     }
 
-    const matches = records.filter(r => {
+    const filters = { fullName: fName, rollNumber: rNum, college: col, department: dept, workshopName: wk };
+    setActiveFilters(filters);
+    setHasSearched(true);
+
+    const matches = allSearchableRecords.filter(r => {
       const matchName = !fName || (r.fullName && r.fullName.toLowerCase().includes(fName));
       const matchRoll = !rNum || (r.rollNumber && r.rollNumber.toLowerCase().includes(rNum)) || (r.id && r.id.toLowerCase().includes(rNum));
-      const matchCol = !col || (r.college && r.college.toLowerCase().trim() === col);
-      const matchDept = !dept || (r.department && r.department.toLowerCase().trim() === dept);
-      const matchWk = !wk || (r.workshopName && r.workshopName.toLowerCase().trim() === wk);
+      const matchCol = !col || (r.college && r.college.toLowerCase().includes(col));
+      const matchDept = !dept || (r.department && r.department.toLowerCase().includes(dept));
+      const matchWk = !wk || (r.workshopName && r.workshopName.toLowerCase().includes(wk));
 
       return matchName && matchRoll && matchCol && matchDept && matchWk;
     });
-
-    setMatchedRecords(matches);
-    setHasSearched(true);
 
     if (matches.length > 0) {
       if (showToast) showToast(`Found ${matches.length} record(s) matching your details!`);
@@ -138,7 +206,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
       rollNumber: '',
       workshopName: ''
     });
-    setMatchedRecords([]);
+    setActiveFilters(null);
     setHasSearched(false);
     if (showToast) showToast('Search form reset');
   };
@@ -434,6 +502,18 @@ export default function StudentCertificatePortal({ records = [], certificates = 
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* STANDALONE CERTIFICATES DISPLAY */}
+      {hasSearched && standaloneCerts.length > 0 && (
+        <div style={{ marginTop: '1rem' }}>
+          <CertificateDownloadBox
+            certificates={standaloneCerts}
+            rollNumber={filterForm.rollNumber}
+            fullName={filterForm.fullName}
+            workshopName={filterForm.workshopName}
+          />
         </div>
       )}
 

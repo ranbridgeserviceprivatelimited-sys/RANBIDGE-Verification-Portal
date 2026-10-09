@@ -6,25 +6,79 @@ export default function CertificateGenerator({ record, showActions = true, onDow
   const [isGenerating, setIsGenerating] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
+  const safeText = (val, defaultVal = '') => {
+    if (val === null || val === undefined) return defaultVal;
+    if (typeof val === 'string') return val;
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'object' && val.seconds !== undefined) {
+      try { return new Date(val.seconds * 1000).toLocaleDateString(); } catch (e) {}
+    }
+    return defaultVal;
+  };
+
   // Dynamic values from registration record
-  const recipientName = record?.fullName || 'Participant Name';
-  const collegeName = record?.college || 'Narasaraopeta Engineering College';
-  const workshopTitle = record?.workshopName || 'STARTUP & ENTREPRENEURSHIP AND IPR RIGHTS';
-  const workshopDate = record?.workshopDate || 'October 7, 2026';
-  const durationText = record?.duration || '2-Day';
-  const rollNumber = record?.rollNumber || 'REG-2026';
+  const recipientName = safeText(record?.fullName || record?.studentName || record?.name, 'Participant Name');
+  const collegeName = safeText(record?.college || record?.institution, 'Narasaraopeta Engineering College');
+  const workshopTitle = safeText(record?.workshopName || record?.workshop, 'STARTUP & ENTREPRENEURSHIP AND IPR RIGHTS');
+  const workshopDate = safeText(record?.workshopDate || record?.date, 'October 7, 2026');
+  const durationText = safeText(record?.duration, '2-Day');
+  const rollNumber = safeText(record?.rollNumber || record?.id, 'REG-2026');
 
   // Draw High-Resolution Certificate on HTML5 Canvas using reference image background
   const drawCertificate = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    const width = 1414;
-    const height = 1000;
+      const ctx = canvas.getContext('2d');
+      const width = 1414;
+      const height = 1000;
 
     canvas.width = width;
     canvas.height = height;
+
+    // Render fallback certificate layout immediately so canvas is never blank
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = '#1e3a8a';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(20, 20, width - 40, height - 40);
+
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(36, 36, width - 72, height - 72);
+
+    const centerX = width / 2;
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#1e3a8a';
+    ctx.font = 'bold 36px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('RANBIDGE SOLUTIONS', centerX, 120);
+
+    ctx.fillStyle = '#d97706';
+    ctx.font = '700 20px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText('OFFICIAL CERTIFICATE OF PARTICIPATION', centerX, 160);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold italic 48px "Georgia", serif';
+    ctx.fillText(recipientName, centerX, 360);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '500 22px "Georgia", serif';
+    ctx.fillText(`for successfully participating in the ${durationText} Workshop on`, centerX, 440);
+
+    ctx.fillStyle = '#1d4ed8';
+    ctx.font = '900 36px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText(workshopTitle.toUpperCase(), centerX, 510);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '700 20px "Georgia", serif';
+    ctx.fillText(`📅  ${workshopDate}    |    📍  ${collegeName}`, centerX, 580);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '600 16px monospace';
+    ctx.fillText(`Certificate ID: ${rollNumber}  •  Status: VERIFIED & VALIDATED`, centerX, 880);
 
     const bgImage = new Image();
     bgImage.src = '/reference_certificate.png';
@@ -163,6 +217,9 @@ export default function CertificateGenerator({ record, showActions = true, onDow
         ctx.fillText(collegeStr, line3StartX + dateWidth + gapBetween, 690);
       };
     };
+    } catch (err) {
+      console.error('Canvas draw error:', err);
+    }
   };
 
   useEffect(() => {

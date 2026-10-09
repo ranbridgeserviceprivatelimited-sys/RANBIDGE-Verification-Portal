@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { User, Building2, Hash, Calendar, Laptop, BookOpen, CalendarCheck, RotateCcw, Send, ShieldCheck, CheckCircle2, Clock } from 'lucide-react';
 import logoImg from '../../assets/logo.jpg';
 
-export default function RegistrationForm({ onSubmitSuccess, masterDump = [], records = [], certificates = [], showToast }) {
+export default function RegistrationForm({ onSubmitSuccess, masterDump = [], records = [], certificates = [], portalSettings = {}, showToast }) {
   const getTodayDateStr = () => new Date().toISOString().split('T')[0];
 
   const [formData, setFormData] = useState({
@@ -15,125 +15,45 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
     workshopDate: getTodayDateStr()
   });
 
+  const [isCustomCollege, setIsCustomCollege] = useState(false);
+  const [isCustomWorkshop, setIsCustomWorkshop] = useState(false);
+  const [isCustomDept, setIsCustomDept] = useState(false);
+
   const matchedMasterEntry = useMemo(() => {
     if (!formData.rollNumber.trim()) return null;
     const roll = formData.rollNumber.trim().toUpperCase();
     return masterDump.find(m => m.rollNumber && m.rollNumber.trim().toUpperCase() === roll);
   }, [formData.rollNumber, masterDump]);
 
-  // Dynamic Auto-complete Suggestions derived from Master Dump, Admin Records, Certificates, & Pre-seeded Folders
+  // Dynamic College Dropdown options derived from Admin Portal Settings, Master Dump, Records, Certificates
   const collegeSuggestions = useMemo(() => {
-    const set = new Set([
-      "National Institute of Technology",
-      "Indian Institute of Technology, Madras",
-      "Anna University, Chennai",
-      "SRM Institute of Science and Technology",
-      "Vellore Institute of Technology (VIT)",
-      "PSG College of Technology",
-      "SSN College of Engineering",
-      "Sathyabama Institute of Science and Technology",
-      "St. Joseph's College of Engineering",
-      "Rajalakshmi Engineering College",
-      "Saveetha Engineering College",
-      "Sri Sairam Engineering College",
-      "Hindusthan College of Engineering and Technology",
-      "KPR Institute of Engineering and Technology",
-      "Vel Tech Rangarajan Dr. Sagunthala R&D Institute",
-      "B.S. Abdur Rahman Crescent Institute of Science and Technology",
-      "Kongu Engineering College",
-      "Bannari Amman Institute of Technology",
-      "Coimbatore Institute of Technology",
-      "Kumaraguru College of Technology"
-    ]);
-
-    (masterDump || []).forEach(m => {
-      const val = m.college || m.collegeName || m.institution;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    (records || []).forEach(r => {
-      const val = r.college || r.institution;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    (certificates || []).forEach(c => {
-      const val = c.college || c.collegeName || c.institution;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    return Array.from(set).sort();
-  }, [masterDump, records, certificates]);
+    return [
+      "Narasaraopeta Engineering College",
+      "Tirumala Engineering College",
+      "AM Reddy College"
+    ];
+  }, []);
 
   const departmentSuggestions = useMemo(() => {
-    const set = new Set([
+    return [
       "Computer Science & Engineering",
-      "Information Technology",
-      "Artificial Intelligence & Data Science",
-      "Artificial Intelligence & Machine Learning",
-      "Electronics & Communication Engineering",
-      "Electrical & Electronics Engineering",
-      "Mechanical Engineering",
+      "Computer Science (Artificial Intelligence & Machine Learning)",
+      "Computer Science (Artificial Intelligence)",
+      "Computer Science (Cyber Security)",
+      "Computer Science (Data Science)",
       "Civil Engineering",
-      "Cyber Security",
-      "Data Science",
-      "Robotics & Automation",
-      "Biomedical Engineering",
-      "Chemical Engineering",
-      "Aeronautical Engineering",
-      "Mechatronics Engineering"
-    ]);
-
-    (masterDump || []).forEach(m => {
-      const val = m.department || m.dept;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    (records || []).forEach(r => {
-      const val = r.department || r.dept;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    (certificates || []).forEach(c => {
-      const val = c.department || c.dept;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    return Array.from(set).sort();
-  }, [masterDump, records, certificates]);
+      "Electronics & Communication Engineering (ECE)",
+      "Electrical & Electronics Engineering (EEE)",
+      "Mechanical Engineering",
+      "Pharmacy"
+    ];
+  }, []);
 
   const workshopSuggestions = useMemo(() => {
-    const set = new Set([
-      "AI & Cloud Architecture",
-      "Full Stack Web Development",
-      "Cyber Security & Ethical Hacking",
-      "Data Science & Machine Learning",
-      "Embedded Systems & IoT",
-      "DevOps & Cloud Computing",
-      "VLSI Design & Microcontrollers",
-      "Blockchain Technology & Smart Contracts",
-      "Python Programming & Automation",
-      "React.js & Modern Web Frameworks",
-      "Mobile App Development with Flutter",
-      "UI/UX Design & System Architecture"
-    ]);
-
-    (masterDump || []).forEach(m => {
-      const val = m.workshopName || m.title || m.course;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    (records || []).forEach(r => {
-      const val = r.workshopName || r.title || r.course;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    (certificates || []).forEach(c => {
-      const val = c.workshopName || c.title || c.course;
-      if (val && typeof val === 'string' && val.trim()) set.add(val.trim());
-    });
-
-    return Array.from(set).sort();
-  }, [masterDump, records, certificates]);
+    return [
+      "Idea to MVP - Entrepreneurship & Startups"
+    ];
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -150,7 +70,7 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
       workshopName: '',
       workshopDate: getTodayDateStr()
     });
-    showToast('Form fields reset');
+    if (showToast) showToast('Form fields reset');
   };
 
   const handleSubmit = (e) => {
@@ -175,8 +95,8 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
       department: formData.department.trim(),
       workshopName: formData.workshopName.trim(),
       workshopDate: formData.workshopDate,
-      verificationStatus: 'verified',
-      verifiedAt: new Date().toLocaleString(),
+      verificationStatus: isVerified ? 'verified' : 'pending',
+      verifiedAt: isVerified ? new Date().toLocaleString() : null,
       matchedAdminData: matchedMasterEntry || null,
       submittedAt: new Date().toLocaleString()
     };
@@ -299,24 +219,43 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
             </label>
             <div className="input-wrapper">
               <Building2 className="input-icon" />
-              <input
-                type="text"
+              <select
                 id="college"
-                name="college"
-                list="college-suggestions"
                 className="form-input"
-                placeholder="e.g. National Institute of Technology"
-                value={formData.college}
-                onChange={handleChange}
-                autoComplete="on"
+                value={isCustomCollege ? 'OTHER' : (formData.college || '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'OTHER') {
+                    setIsCustomCollege(true);
+                    setFormData(prev => ({ ...prev, college: '' }));
+                  } else {
+                    setIsCustomCollege(false);
+                    setFormData(prev => ({ ...prev, college: val }));
+                  }
+                }}
                 required
-              />
-              <datalist id="college-suggestions">
+              >
+                <option value="" disabled>-- Select College / Institution --</option>
                 {collegeSuggestions.map((col, idx) => (
-                  <option key={idx} value={col} />
+                  <option key={idx} value={col}>{col}</option>
                 ))}
-              </datalist>
+                <option value="OTHER">✏️ + Enter Other College Name...</option>
+              </select>
             </div>
+            {isCustomCollege && (
+              <div className="input-wrapper" style={{ marginTop: '0.45rem' }}>
+                <input
+                  type="text"
+                  name="college"
+                  className="form-input"
+                  placeholder="Type your College / Institution Name..."
+                  value={formData.college}
+                  onChange={handleChange}
+                  required
+                  autoFocus
+                />
+              </div>
+            )}
           </div>
 
           {/* 3. Roll Number */}
@@ -371,24 +310,43 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
             </label>
             <div className="input-wrapper">
               <Laptop className="input-icon" />
-              <input
-                type="text"
+              <select
                 id="department"
-                name="department"
-                list="department-suggestions"
                 className="form-input"
-                placeholder="e.g. Computer Science Engineering"
-                value={formData.department}
-                onChange={handleChange}
-                autoComplete="on"
+                value={isCustomDept ? 'OTHER' : (formData.department || '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'OTHER') {
+                    setIsCustomDept(true);
+                    setFormData(prev => ({ ...prev, department: '' }));
+                  } else {
+                    setIsCustomDept(false);
+                    setFormData(prev => ({ ...prev, department: val }));
+                  }
+                }}
                 required
-              />
-              <datalist id="department-suggestions">
+              >
+                <option value="" disabled>-- Select Department / Branch --</option>
                 {departmentSuggestions.map((dept, idx) => (
-                  <option key={idx} value={dept} />
+                  <option key={idx} value={dept}>{dept}</option>
                 ))}
-              </datalist>
+                <option value="OTHER">✏️ + Enter Other Department...</option>
+              </select>
             </div>
+            {isCustomDept && (
+              <div className="input-wrapper" style={{ marginTop: '0.45rem' }}>
+                <input
+                  type="text"
+                  name="department"
+                  className="form-input"
+                  placeholder="Type your Department / Branch..."
+                  value={formData.department}
+                  onChange={handleChange}
+                  required
+                  autoFocus
+                />
+              </div>
+            )}
           </div>
 
           {/* 6. Workshop Name */}
@@ -399,24 +357,43 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
             </label>
             <div className="input-wrapper">
               <BookOpen className="input-icon" />
-              <input
-                type="text"
+              <select
                 id="workshopName"
-                name="workshopName"
-                list="workshop-suggestions"
                 className="form-input"
-                placeholder="e.g. AI & Cloud Architecture"
-                value={formData.workshopName}
-                onChange={handleChange}
-                autoComplete="on"
+                value={isCustomWorkshop ? 'OTHER' : (formData.workshopName || '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'OTHER') {
+                    setIsCustomWorkshop(true);
+                    setFormData(prev => ({ ...prev, workshopName: '' }));
+                  } else {
+                    setIsCustomWorkshop(false);
+                    setFormData(prev => ({ ...prev, workshopName: val }));
+                  }
+                }}
                 required
-              />
-              <datalist id="workshop-suggestions">
+              >
+                <option value="" disabled>-- Select Event / Workshop Title --</option>
                 {workshopSuggestions.map((ws, idx) => (
-                  <option key={idx} value={ws} />
+                  <option key={idx} value={ws}>{ws}</option>
                 ))}
-              </datalist>
+                <option value="OTHER">✏️ + Enter Other Workshop Title...</option>
+              </select>
             </div>
+            {isCustomWorkshop && (
+              <div className="input-wrapper" style={{ marginTop: '0.45rem' }}>
+                <input
+                  type="text"
+                  name="workshopName"
+                  className="form-input"
+                  placeholder="Type your Workshop / Event Title..."
+                  value={formData.workshopName}
+                  onChange={handleChange}
+                  required
+                  autoFocus
+                />
+              </div>
+            )}
           </div>
 
           {/* 7. Date */}

@@ -57,7 +57,11 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState(() => {
     try {
-      return localStorage.getItem('ranbidge_active_tab') || 'register';
+      const saved = localStorage.getItem('ranbidge_active_tab');
+      if (saved && ['register', 'check-certs', 'verify'].includes(saved)) {
+        return saved;
+      }
+      return 'register';
     } catch (err) {
       return 'register';
     }
@@ -80,9 +84,62 @@ export default function App() {
       return false;
     }
   });
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [registeredRecord, setRegisteredRecord] = useState(null);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
+
+  // Portal Settings (Dynamic Colleges, Workshops, & Departments options managed by Admin)
+  const [portalSettings, setPortalSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ranbidge_portal_settings');
+      return saved ? JSON.parse(saved) : {
+        colleges: [
+          "Narasaraopeta Engineering College",
+          "Tirumala Engineering College",
+          "AM Reddy College"
+        ],
+        workshops: [
+          "Idea to MVP - Entrepreneurship & Startups"
+        ],
+        departments: [
+          "Computer Science & Engineering",
+          "Computer Science (Artificial Intelligence & Machine Learning)",
+          "Computer Science (Artificial Intelligence)",
+          "Computer Science (Cyber Security)",
+          "Computer Science (Data Science)",
+          "Civil Engineering",
+          "Electronics & Communication Engineering (ECE)",
+          "Electrical & Electronics Engineering (EEE)",
+          "Mechanical Engineering",
+          "Pharmacy"
+        ]
+      };
+    } catch (e) {
+      return {
+        colleges: ["Narasaraopeta Engineering College", "Tirumala Engineering College", "AM Reddy College"],
+        workshops: ["Idea to MVP - Entrepreneurship & Startups"],
+        departments: [
+          "Computer Science & Engineering",
+          "Computer Science (Artificial Intelligence & Machine Learning)",
+          "Computer Science (Artificial Intelligence)",
+          "Computer Science (Cyber Security)",
+          "Computer Science (Data Science)",
+          "Civil Engineering",
+          "Electronics & Communication Engineering (ECE)",
+          "Electrical & Electronics Engineering (EEE)",
+          "Mechanical Engineering",
+          "Pharmacy"
+        ]
+      };
+    }
+  });
+
+  const handleSavePortalSettings = (newSettings) => {
+    setPortalSettings(newSettings);
+    try {
+      localStorage.setItem('ranbidge_portal_settings', JSON.stringify(newSettings));
+    } catch (e) {}
+  };
 
   // Persist Active Tab to localStorage across browser refresh
   useEffect(() => {
@@ -209,27 +266,27 @@ export default function App() {
 
   // 5. Dynamic Auto-Verification Sync: Auto-verify records when matched with master dump
   useEffect(() => {
-    if (masterDump.length === 0 || records.length === 0) return;
+    if (masterDump.length === 0) return;
 
     const masterSet = new Set(masterDump.map(m => m.rollNumber ? m.rollNumber.trim().toUpperCase() : ''));
 
-    let hasChanges = false;
-    const updatedRecords = records.map(rec => {
-      const rollKey = rec.rollNumber ? rec.rollNumber.trim().toUpperCase() : '';
-      if (masterSet.has(rollKey) && rec.verificationStatus !== 'verified') {
-        hasChanges = true;
-        return {
-          ...rec,
-          verificationStatus: 'verified',
-          verifiedAt: rec.verifiedAt || new Date().toLocaleString()
-        };
-      }
-      return rec;
+    setRecords(prevRecords => {
+      if (!prevRecords || prevRecords.length === 0) return prevRecords;
+      let hasChanges = false;
+      const updatedRecords = prevRecords.map(rec => {
+        const rollKey = rec.rollNumber ? rec.rollNumber.trim().toUpperCase() : '';
+        if (masterSet.has(rollKey) && rec.verificationStatus !== 'verified') {
+          hasChanges = true;
+          return {
+            ...rec,
+            verificationStatus: 'verified',
+            verifiedAt: rec.verifiedAt || new Date().toLocaleString()
+          };
+        }
+        return rec;
+      });
+      return hasChanges ? updatedRecords : prevRecords;
     });
-
-    if (hasChanges) {
-      setRecords(updatedRecords);
-    }
   }, [masterDump]);
 
   // Sync registration records state to localStorage
@@ -678,45 +735,52 @@ export default function App() {
       />
 
       {/* Main Body */}
-      <main className="main-content">
-        {activeTab === 'register' && (
-          <div className="page-view">
-            <div id="registrationFormSection">
-              <RegistrationForm
-                onSubmitSuccess={handleRegistrationSubmit}
-                masterDump={masterDump}
-                records={records}
-                certificates={certificates}
-                showToast={showToast}
-              />
-            </div>
-          </div>
-        )}
+      {(() => {
+        const validTab = ['register', 'check-certs', 'verify'].includes(activeTab) ? activeTab : 'register';
+        return (
+          <main className="main-content">
+            {validTab === 'register' && (
+              <div className="page-view">
+                <div id="registrationFormSection">
+                  <RegistrationForm
+                    onSubmitSuccess={handleRegistrationSubmit}
+                    masterDump={masterDump}
+                    records={records}
+                    certificates={certificates}
+                    portalSettings={portalSettings}
+                    showToast={showToast}
+                  />
+                </div>
+              </div>
+            )}
 
-        {activeTab === 'check-certs' && (
-          <div className="page-view">
-            <StudentCertificatePortal
-              records={records}
-              certificates={certificates}
-              initialSearchQuery={latestRecord ? (latestRecord.rollNumber || latestRecord.fullName) : ''}
-              onNewRegistration={() => setActiveTab('register')}
-              showToast={showToast}
-            />
-          </div>
-        )}
+            {validTab === 'check-certs' && (
+              <div className="page-view">
+                <StudentCertificatePortal
+                  records={records}
+                  certificates={certificates}
+                  masterDump={masterDump}
+                  initialSearchQuery={latestRecord ? (latestRecord.rollNumber || latestRecord.fullName) : ''}
+                  onNewRegistration={() => setActiveTab('register')}
+                  showToast={showToast}
+                />
+              </div>
+            )}
 
-        {activeTab === 'verify' && (
-          <div className="page-view">
-            <PublicSearch
-              records={records}
-              certificates={certificates}
-              latestRecord={latestRecord || registeredRecord}
-              onNewRegistration={() => setActiveTab('register')}
-              showToast={showToast}
-            />
-          </div>
-        )}
-      </main>
+            {validTab === 'verify' && (
+              <div className="page-view">
+                <PublicSearch
+                  records={records}
+                  certificates={certificates}
+                  latestRecord={latestRecord || registeredRecord}
+                  onNewRegistration={() => setActiveTab('register')}
+                  showToast={showToast}
+                />
+              </div>
+            )}
+          </main>
+        );
+      })()}
 
       {/* Footer */}
       <Footer />
@@ -740,6 +804,8 @@ export default function App() {
         records={records}
         certificates={certificates}
         masterDump={masterDump}
+        portalSettings={portalSettings}
+        onSavePortalSettings={handleSavePortalSettings}
         onDeleteRecord={handleDeleteRecord}
         onVerifyRecord={handleVerifyRecord}
         onAddRecord={handleRegistrationSubmit}

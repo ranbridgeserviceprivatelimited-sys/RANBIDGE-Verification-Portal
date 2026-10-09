@@ -40,8 +40,9 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
     return isRollMatch || isNameMatch || isWorkshopMatch;
   });
 
-  // Fallback: If no direct match by name/roll, but certificates exist in database, display available certificate dumps for download
-  const displayCerts = matchedCerts.length > 0 ? matchedCerts : certificates.slice(0, 3);
+  const displayCerts = matchedCerts;
+
+  if (!displayCerts || displayCerts.length === 0) return null;
 
   const getFileIcon = (fileType, fileName) => {
     const name = (fileName || '').toLowerCase();

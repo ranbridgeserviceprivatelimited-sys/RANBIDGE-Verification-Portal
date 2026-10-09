@@ -107,6 +107,16 @@ export default function PublicSearch({ records = [], certificates = [], latestRe
         />
       )}
 
+      {hasSearched && !selectedRecord && standaloneCertificates.length > 0 && (
+        <div style={{ marginTop: '1.5rem' }}>
+          <CertificateDownloadBox
+            certificates={standaloneCertificates}
+            rollNumber={searchedQueryStr}
+            fullName={searchedQueryStr}
+          />
+        </div>
+      )}
+
 
 
       {hasSearched && !selectedRecord && standaloneCertificates.length === 0 && (

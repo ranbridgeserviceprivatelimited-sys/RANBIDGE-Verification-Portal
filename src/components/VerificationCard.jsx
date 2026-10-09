@@ -9,6 +9,17 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
 
   const isVerified = record.verificationStatus === 'verified' || !record.verificationStatus || record.verificationStatus !== 'rejected';
 
+  const handleDownload = (cert) => {
+    if (!cert || !cert.fileData) return;
+    const link = document.createElement('a');
+    link.download = cert.fileName || `${cert.studentName || record?.fullName || 'Certificate'}.${cert.fileType || 'png'}`;
+    link.href = cert.fileData;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (showToast) showToast('Downloading certificate...');
+  };
+
   return (
     <div className="submission-card">
       {/* Header Badge */}
