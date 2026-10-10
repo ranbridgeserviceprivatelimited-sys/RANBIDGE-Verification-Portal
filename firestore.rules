@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Registrations collection rules: allow full read, write, and delete access
+    match /registrations/{document=**} {
+      allow read, write, create, update, delete: if true;
+    }
+
+    // Certificates collection rules: allow full read, write, and delete access
+    match /certificates/{document=**} {
+      allow read, write, create, update, delete: if true;
+    }
+
+    // Master Dump collection rules: allow full read, write, and delete access
+    match /master_dump/{document=**} {
+      allow read, write, create, update, delete: if true;
+    }
+
+    // Fallback rule for all other documents in the database
+    match /{document=**} {
+      allow read, write, create, update, delete: if true;
+    }
+  }
+}

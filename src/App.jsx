@@ -186,17 +186,15 @@ export default function App() {
     try {
       const colRef = collection(db, 'registrations');
       unsubscribe = onSnapshot(colRef, (snapshot) => {
-        if (!snapshot.empty) {
-          const fetched = snapshot.docs.map(d => ({
-            firestoreId: d.id,
-            ...d.data()
-          }));
-          fetched.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          setRecords(fetched);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(fetched));
-          } catch (e) {}
-        }
+        const fetched = snapshot.docs.map(d => ({
+          firestoreId: d.id,
+          ...d.data()
+        }));
+        fetched.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        setRecords(fetched);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(fetched));
+        } catch (e) {}
       }, (err) => {
         console.warn('Firestore registrations fallback:', err);
       });
@@ -206,30 +204,45 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 3. Listen to Firestore certificates updates & merge with local IndexedDB state
+  // 3. Listen to Firestore certificates updates & sync with IndexedDB / local state
   useEffect(() => {
     let unsubscribe = () => {};
     try {
       const colRef = collection(db, 'certificates');
       unsubscribe = onSnapshot(colRef, (snapshot) => {
-        if (!snapshot.empty) {
-          const fetched = snapshot.docs.map(d => ({
-            firestoreId: d.id,
-            ...d.data()
-          }));
+        const fetched = snapshot.docs.map(d => ({
+          firestoreId: d.id,
+          ...d.data()
+        }));
 
-          setCertificates(prev => {
-            const map = new Map();
-            prev.forEach(c => map.set(c.id, c));
-            fetched.forEach(c => map.set(c.id, { ...map.get(c.id), ...c }));
-            const merged = Array.from(map.values());
-            saveCertificatesToIDB(merged);
+        setCertificates(prev => {
+          if (snapshot.empty) {
+            saveCertificatesToIDB([]);
             try {
-              localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(merged));
+              localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify([]));
             } catch (e) {}
-            return merged;
+            return [];
+          }
+
+          const fetchedFirestoreIds = new Set(fetched.map(f => f.firestoreId).filter(Boolean));
+          const filteredPrev = prev.filter(c => {
+            if (c.firestoreId && !fetchedFirestoreIds.has(c.firestoreId)) {
+              return false;
+            }
+            return true;
           });
-        }
+
+          const map = new Map();
+          filteredPrev.forEach(c => map.set(c.id, c));
+          fetched.forEach(c => map.set(c.id, { ...map.get(c.id), ...c }));
+          const merged = Array.from(map.values());
+
+          saveCertificatesToIDB(merged);
+          try {
+            localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(merged));
+          } catch (e) {}
+          return merged;
+        });
       }, (err) => {
         console.warn('Firestore certs fallback:', err);
       });
@@ -245,16 +258,14 @@ export default function App() {
     try {
       const colRef = collection(db, 'master_dump');
       unsubscribe = onSnapshot(colRef, (snapshot) => {
-        if (!snapshot.empty) {
-          const fetched = snapshot.docs.map(d => ({
-            firestoreId: d.id,
-            ...d.data()
-          }));
-          setMasterDump(fetched);
-          try {
-            localStorage.setItem(MASTER_DUMP_STORAGE_KEY, JSON.stringify(fetched));
-          } catch (e) {}
-        }
+        const fetched = snapshot.docs.map(d => ({
+          firestoreId: d.id,
+          ...d.data()
+        }));
+        setMasterDump(fetched);
+        try {
+          localStorage.setItem(MASTER_DUMP_STORAGE_KEY, JSON.stringify(fetched));
+        } catch (e) {}
       }, (err) => {
         console.warn('Firestore master_dump fallback:', err);
       });
@@ -653,55 +664,53 @@ export default function App() {
 
   // Refresh & Re-sync Data with Firebase & IndexedDB
   const handleRefreshData = async () => {
-    let registrationCount = records.length;
-    let certCount = certificates.length;
+    let registrationCount = 0;
+    let certCount = 0;
+    let masterCount = 0;
 
     try {
       // 1. Re-query Registrations from Firestore
       const regCol = collection(db, 'registrations');
       const regSnapshot = await getDocs(regCol);
-      if (!regSnapshot.empty) {
-        const fetchedRegs = regSnapshot.docs.map(d => ({
-          firestoreId: d.id,
-          ...d.data()
-        }));
-        fetchedRegs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        setRecords(fetchedRegs);
-        registrationCount = fetchedRegs.length;
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(fetchedRegs));
-        } catch (e) {}
-      }
-
-      // 2. Re-query Certificates from Firestore & IndexedDB
-      const certCol = collection(db, 'certificates');
-      const certSnapshot = await getDocs(certCol);
-      const fetchedCerts = !certSnapshot.empty ? certSnapshot.docs.map(d => ({
+      const fetchedRegs = regSnapshot.docs.map(d => ({
         firestoreId: d.id,
         ...d.data()
-      })) : [];
+      }));
+      fetchedRegs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      setRecords(fetchedRegs);
+      registrationCount = fetchedRegs.length;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(fetchedRegs));
+      } catch (e) {}
 
-      const idbCerts = await getCertificatesFromIDB();
+      // 2. Re-query Certificates from Firestore
+      const certCol = collection(db, 'certificates');
+      const certSnapshot = await getDocs(certCol);
+      const fetchedCerts = certSnapshot.docs.map(d => ({
+        firestoreId: d.id,
+        ...d.data()
+      }));
+      setCertificates(fetchedCerts);
+      certCount = fetchedCerts.length;
+      await saveCertificatesToIDB(fetchedCerts);
+      try {
+        localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(fetchedCerts));
+      } catch (e) {}
 
-      const map = new Map();
-      certificates.forEach(c => map.set(c.id, c));
-      if (idbCerts && idbCerts.length > 0) {
-        idbCerts.forEach(c => map.set(c.id, c));
-      }
-      fetchedCerts.forEach(c => map.set(c.id, { ...map.get(c.id), ...c }));
+      // 3. Re-query Master Dump from Firestore
+      const masterCol = collection(db, 'master_dump');
+      const masterSnapshot = await getDocs(masterCol);
+      const fetchedMaster = masterSnapshot.docs.map(d => ({
+        firestoreId: d.id,
+        ...d.data()
+      }));
+      setMasterDump(fetchedMaster);
+      masterCount = fetchedMaster.length;
+      try {
+        localStorage.setItem(MASTER_DUMP_STORAGE_KEY, JSON.stringify(fetchedMaster));
+      } catch (e) {}
 
-      const mergedCerts = Array.from(map.values());
-      setCertificates(mergedCerts);
-      certCount = mergedCerts.length;
-
-      if (mergedCerts.length > 0) {
-        await saveCertificatesToIDB(mergedCerts);
-        try {
-          localStorage.setItem(CERTS_STORAGE_KEY, JSON.stringify(mergedCerts));
-        } catch (e) {}
-      }
-
-      showToast(`⚡ Synced & Refreshed! ${registrationCount} record(s) & ${certCount} cert(s).`);
+      showToast(`⚡ Synced & Refreshed! ${registrationCount} record(s), ${certCount} cert(s), ${masterCount} master entry(s).`);
     } catch (err) {
       console.warn('Refresh notice:', err);
       showToast('⚡ Local database refreshed!');
