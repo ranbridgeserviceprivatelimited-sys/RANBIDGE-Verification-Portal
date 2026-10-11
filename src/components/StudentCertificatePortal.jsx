@@ -241,7 +241,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
     <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {/* Search Header & Multi-field Form */}
-      <div className="form-container-wrapper" style={{ background: '#ffffff', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-lg)', padding: '2rem' }}>
+      <div className="form-container-wrapper" style={{ padding: '2.5rem 2rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div style={{
             display: 'inline-flex',

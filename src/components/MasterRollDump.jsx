@@ -266,11 +266,11 @@ export default function MasterRollDump({
 
       {/* Input Section Container */}
       <div style={{
-        background: '#ffffff',
+        background: 'var(--bg-primary)',
         border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-lg)',
         padding: '1.5rem',
-        boxShadow: 'var(--shadow-sm)'
+        boxShadow: 'var(--neu-raised)'
       }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -475,11 +475,11 @@ export default function MasterRollDump({
 
       {/* MASTER DUMP DATABASE TABLE */}
       <div style={{
-        background: '#ffffff',
+        background: 'var(--bg-primary)',
         border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-lg)',
         padding: '1.25rem',
-        boxShadow: 'var(--shadow-sm)'
+        boxShadow: 'var(--neu-raised)'
       }}>
         
         {/* Table Toolbar */}

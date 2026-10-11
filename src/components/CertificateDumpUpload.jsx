@@ -202,14 +202,14 @@ export default function CertificateDumpUpload({ certificates, onSaveCertificates
         <div style={{
           width: '56px',
           height: '56px',
-          background: '#ffffff',
+          background: 'var(--bg-primary)',
           color: 'var(--primary)',
           borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           margin: '0 auto 1rem',
-          boxShadow: 'var(--shadow-sm)'
+          boxShadow: 'var(--neu-raised-sm)'
         }}>
           <UploadCloud size={30} />
         </div>
@@ -224,9 +224,10 @@ export default function CertificateDumpUpload({ certificates, onSaveCertificates
       {/* Staged Upload Items */}
       {stagedFiles.length > 0 && (
         <div style={{
-          background: '#ffffff',
+          background: 'var(--bg-primary)',
           border: '1px solid var(--border-color)',
           borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--neu-raised)',
           padding: '1.5rem'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -287,9 +288,10 @@ export default function CertificateDumpUpload({ certificates, onSaveCertificates
 
       {/* Dumped / Published Certificates List & Grid View */}
       <div style={{
-        background: '#ffffff',
+        background: 'var(--bg-primary)',
         border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--neu-raised)',
         padding: '1.5rem'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>

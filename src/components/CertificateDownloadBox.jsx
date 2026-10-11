@@ -73,11 +73,11 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
     <>
       <div className="certificate-box-container" style={{
         marginTop: '1.75rem',
-        background: 'linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)',
-        border: '1.5px solid #bfdbfe',
+        background: 'var(--bg-primary)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-lg)',
         padding: '1.5rem',
-        boxShadow: 'var(--shadow-sm)'
+        boxShadow: 'var(--neu-raised)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -95,7 +95,8 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
             borderRadius: '50px',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.3rem'
+            gap: '0.3rem',
+            boxShadow: 'var(--neu-raised-sm)'
           }}>
             <CheckCircle2 size={13} /> {displayCerts.length} Certificate File(s) Available
           </span>
@@ -111,8 +112,8 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
 
             return (
               <div key={cert.id || index} style={{
-                background: '#ffffff',
-                border: '1.5px solid #dbeafe',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-color)',
                 borderRadius: 'var(--radius-md)',
                 padding: '1.25rem',
                 display: 'flex',
@@ -120,7 +121,8 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
                 justifyContent: 'space-between',
                 gap: '1rem',
                 flexWrap: 'wrap',
-                boxShadow: 'var(--shadow-sm)'
+                boxShadow: 'var(--neu-raised-sm)',
+                transition: 'var(--transition)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '240px' }}>
                   <div 
