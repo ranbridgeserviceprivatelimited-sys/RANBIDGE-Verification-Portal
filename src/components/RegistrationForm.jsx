@@ -12,6 +12,7 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
     passoutYear: '2026',
     department: '',
     workshopName: '',
+    workshopDuration: '',
     workshopDate: getTodayDateStr()
   });
 
@@ -27,15 +28,16 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
 
   // Dynamic College Dropdown options derived from Admin Portal Settings, Master Dump, Records, Certificates
   const collegeSuggestions = useMemo(() => {
-    return [
+    const list = new Set(portalSettings.colleges || [
       "Narasaraopeta Engineering College",
       "Tirumala Engineering College",
       "AM Reddy College"
-    ];
-  }, []);
+    ]);
+    return Array.from(list);
+  }, [portalSettings.colleges]);
 
   const departmentSuggestions = useMemo(() => {
-    return [
+    const list = new Set(portalSettings.departments || [
       "Computer Science & Engineering",
       "Computer Science (Artificial Intelligence & Machine Learning)",
       "Computer Science (Artificial Intelligence)",
@@ -46,14 +48,40 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
       "Electrical & Electronics Engineering (EEE)",
       "Mechanical Engineering",
       "Pharmacy"
-    ];
-  }, []);
+    ]);
+    return Array.from(list);
+  }, [portalSettings.departments]);
 
-  const workshopSuggestions = useMemo(() => {
-    return [
-      "Idea to MVP - Entrepreneurship & Startups"
-    ];
-  }, []);
+  const programsCatalog = useMemo(() => {
+    const list = [];
+    (portalSettings.programs || []).forEach(p => {
+      const title = typeof p === 'string' ? p : p?.title;
+      if (title && title.trim()) {
+        list.push({
+          title: title.trim(),
+          type: p.type || 'Program',
+          duration: p.duration || '3 Days'
+        });
+      }
+    });
+    (portalSettings.workshops || []).forEach(w => {
+      if (w && w.trim() && !list.some(item => item.title.toLowerCase() === w.trim().toLowerCase())) {
+        list.push({
+          title: w.trim(),
+          type: 'Workshop',
+          duration: '3 Days'
+        });
+      }
+    });
+    if (list.length === 0) {
+      list.push({
+        title: "Idea to MVP - Entrepreneurship & Startups",
+        type: "Workshop",
+        duration: "3 Days"
+      });
+    }
+    return list;
+  }, [portalSettings.programs, portalSettings.workshops]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,6 +96,7 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
       passoutYear: '2026',
       department: '',
       workshopName: '',
+      workshopDuration: '',
       workshopDate: getTodayDateStr()
     });
     if (showToast) showToast('Form fields reset');
@@ -81,11 +110,6 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
       return;
     }
 
-    const isVerified = Boolean(matchedMasterEntry || masterDump.some(m => 
-      (m.rollNumber && m.rollNumber.trim().toUpperCase() === formData.rollNumber.trim().toUpperCase()) ||
-      (m.fullName && m.fullName.trim().toLowerCase() === formData.fullName.trim().toLowerCase())
-    ));
-
     const newRecord = {
       id: 'REG-' + Math.floor(100000 + Math.random() * 900000),
       fullName: formData.fullName.trim(),
@@ -94,9 +118,10 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
       passoutYear: formData.passoutYear.trim(),
       department: formData.department.trim(),
       workshopName: formData.workshopName.trim(),
+      workshopDuration: formData.workshopDuration || '3 Days',
       workshopDate: formData.workshopDate,
-      verificationStatus: isVerified ? 'verified' : 'pending',
-      verifiedAt: isVerified ? new Date().toLocaleString() : null,
+      verificationStatus: 'pending',
+      verifiedAt: null,
       matchedAdminData: matchedMasterEntry || null,
       submittedAt: new Date().toLocaleString()
     };
@@ -350,10 +375,10 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
             )}
           </div>
 
-          {/* 6. Workshop Name */}
+          {/* 6. Event / Workshop / Internship Name */}
           <div className="form-group">
             <label className="form-label" htmlFor="workshopName">
-              <span>Workshop Name</span>
+              <span>Event / Workshop / Internship</span>
               <span className="required">*</span>
             </label>
             <div className="input-wrapper">
@@ -366,33 +391,71 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
                   const val = e.target.value;
                   if (val === 'OTHER') {
                     setIsCustomWorkshop(true);
-                    setFormData(prev => ({ ...prev, workshopName: '' }));
+                    setFormData(prev => ({ ...prev, workshopName: '', workshopDuration: '' }));
                   } else {
                     setIsCustomWorkshop(false);
-                    setFormData(prev => ({ ...prev, workshopName: val }));
+                    const chosen = programsCatalog.find(p => p.title === val);
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      workshopName: val,
+                      workshopDuration: chosen?.duration || '3 Days'
+                    }));
                   }
                 }}
                 required
               >
-                <option value="" disabled>-- Select Event / Workshop Title --</option>
-                {workshopSuggestions.map((ws, idx) => (
-                  <option key={idx} value={ws}>{ws}</option>
+                <option value="" disabled>-- Select Event / Workshop / Internship --</option>
+                {programsCatalog.map((prog, idx) => (
+                  <option key={idx} value={prog.title}>
+                    {prog.title} {prog.duration ? `(${prog.duration})` : ''}
+                  </option>
                 ))}
-                <option value="OTHER">✏️ + Enter Other Workshop Title...</option>
+                <option value="OTHER">✏️ + Enter Other Event / Workshop / Internship...</option>
               </select>
             </div>
+
+            {/* Display Selected Duration Badge */}
+            {!isCustomWorkshop && formData.workshopName && formData.workshopDuration && (
+              <div style={{
+                marginTop: '0.45rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.8rem',
+                color: '#2563eb',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                padding: '0.22rem 0.65rem',
+                borderRadius: '6px',
+                fontWeight: 700
+              }}>
+                <Clock size={13} color="#2563eb" /> Duration: <span>{formData.workshopDuration}</span>
+              </div>
+            )}
+
             {isCustomWorkshop && (
-              <div className="input-wrapper" style={{ marginTop: '0.45rem' }}>
-                <input
-                  type="text"
-                  name="workshopName"
-                  className="form-input"
-                  placeholder="Type your Workshop / Event Title..."
-                  value={formData.workshopName}
-                  onChange={handleChange}
-                  required
-                  autoFocus
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem', marginTop: '0.45rem' }}>
+                <div className="input-wrapper">
+                  <input
+                    type="text"
+                    name="workshopName"
+                    className="form-input"
+                    placeholder="Type Workshop / Event Title..."
+                    value={formData.workshopName}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                <div className="input-wrapper">
+                  <input
+                    type="text"
+                    name="workshopDuration"
+                    className="form-input"
+                    placeholder="Duration (e.g. 3 Days, 2 Months)..."
+                    value={formData.workshopDuration}
+                    onChange={handleChange}
+                  />
+                </div>
               </div>
             )}
           </div>

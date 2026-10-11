@@ -16,17 +16,18 @@ import {
   Hash,
   Laptop,
   BookOpen,
-  RotateCcw,
-  Clock
+  Clock,
+  XCircle,
+  RotateCcw
 } from 'lucide-react';
 import CertificateGenerator from './CertificateGenerator';
 import CertificateDownloadBox from './CertificateDownloadBox';
 import logoImg from '../../assets/logo.jpg';
 
-export default function StudentCertificatePortal({ records = [], certificates = [], masterDump = [], initialSearchQuery = '', onNewRegistration, showToast }) {
+export default function StudentCertificatePortal({ records = [], certificates = [], masterDump = [], portalSettings = {}, initialSearchQuery = '', onNewRegistration, showToast }) {
   const isRollOrIdQuery = (str) => Boolean(str && (str.startsWith('REG-') || str.startsWith('CERT-') || /^[A-Za-z0-9]+$/i.test(str.trim()) && /\d/.test(str)));
 
-  // Form Details State: Name, College, Department/Branch, Roll Number, Event/Workshop
+  // Form Details State: Name, College, Department/Branch, Roll Number, Event/Workshop/Internship
   const [filterForm, setFilterForm] = useState({
     fullName: initialSearchQuery && !isRollOrIdQuery(initialSearchQuery) ? initialSearchQuery : '',
     college: '',
@@ -42,6 +43,92 @@ export default function StudentCertificatePortal({ records = [], certificates = 
     }
     return { fullName: initialSearchQuery.trim().toLowerCase(), college: '', department: '', rollNumber: '', workshopName: '' };
   });
+
+  // Standardized College Options
+  const collegeOptions = useMemo(() => {
+    const list = new Set(portalSettings.colleges || [
+      "Narasaraopeta Engineering College",
+      "Tirumala Engineering College",
+      "AM Reddy College"
+    ]);
+    records.forEach(r => { if (r.college && r.college !== 'N/A') list.add(r.college); });
+    certificates.forEach(c => { if (c.college && c.college !== 'N/A') list.add(c.college); });
+    return Array.from(list);
+  }, [portalSettings.colleges, records, certificates]);
+
+  // Standardized Department Options
+  const departmentOptions = useMemo(() => {
+    const list = new Set(portalSettings.departments || [
+      "Computer Science & Engineering",
+      "Computer Science (Artificial Intelligence & Machine Learning)",
+      "Computer Science (Artificial Intelligence)",
+      "Computer Science (Cyber Security)",
+      "Computer Science (Data Science)",
+      "Civil Engineering",
+      "Electronics & Communication Engineering (ECE)",
+      "Electrical & Electronics Engineering (EEE)",
+      "Mechanical Engineering",
+      "Pharmacy"
+    ]);
+    records.forEach(r => { if (r.department && r.department !== 'N/A') list.add(r.department); });
+    return Array.from(list);
+  }, [portalSettings.departments, records]);
+
+  // Standardized Event / Workshop / Internship Options with Duration
+  const workshopOptions = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    (portalSettings.programs || []).forEach(p => {
+      const title = typeof p === 'string' ? p : p?.title;
+      if (title && title.trim() && !seen.has(title.trim().toLowerCase())) {
+        seen.add(title.trim().toLowerCase());
+        list.push({
+          title: title.trim(),
+          duration: p.duration || '3 Days'
+        });
+      }
+    });
+
+    (portalSettings.workshops || []).forEach(w => {
+      if (w && w.trim() && !seen.has(w.trim().toLowerCase())) {
+        seen.add(w.trim().toLowerCase());
+        list.push({
+          title: w.trim(),
+          duration: '3 Days'
+        });
+      }
+    });
+
+    records.forEach(r => {
+      if (r.workshopName && r.workshopName !== 'N/A' && !seen.has(r.workshopName.trim().toLowerCase())) {
+        seen.add(r.workshopName.trim().toLowerCase());
+        list.push({
+          title: r.workshopName.trim(),
+          duration: r.workshopDuration || '3 Days'
+        });
+      }
+    });
+
+    certificates.forEach(c => {
+      const wName = c.workshopName || c.eventName;
+      if (wName && wName !== 'N/A' && !seen.has(wName.trim().toLowerCase())) {
+        seen.add(wName.trim().toLowerCase());
+        list.push({
+          title: wName.trim(),
+          duration: '3 Days'
+        });
+      }
+    });
+
+    if (list.length === 0) {
+      list.push({
+        title: "Idea to MVP - Entrepreneurship & Startups",
+        duration: "3 Days"
+      });
+    }
+    return list;
+  }, [portalSettings.programs, portalSettings.workshops, records, certificates]);
 
   // Combine all student records from Registrations, Uploaded Certificates, & Admin Master Data Dump
   const allSearchableRecords = useMemo(() => {
@@ -59,8 +146,9 @@ export default function StudentCertificatePortal({ records = [], certificates = 
         department: r.department || 'N/A',
         rollNumber: r.rollNumber || 'N/A',
         workshopName: r.workshopName || 'N/A',
+        workshopDuration: r.workshopDuration || r.duration || '3 Days',
         workshopDate: r.workshopDate || r.submittedAt || '2026',
-        verificationStatus: r.verificationStatus || 'verified',
+        verificationStatus: r.verificationStatus === 'verified' ? 'verified' : (r.verificationStatus === 'rejected' ? 'rejected' : 'pending'),
         source: 'registration',
         rawRecord: r
       });
@@ -80,6 +168,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
           department: c.department || c.dept || 'N/A',
           rollNumber: c.rollNumber || 'N/A',
           workshopName: c.workshopName || c.eventName || 'N/A',
+          workshopDuration: c.workshopDuration || c.duration || '3 Days',
           workshopDate: c.issueDate || c.date || '2026',
           verificationStatus: 'verified',
           source: 'certificate',
@@ -102,8 +191,9 @@ export default function StudentCertificatePortal({ records = [], certificates = 
           department: m.department || m.dept || 'N/A',
           rollNumber: m.rollNumber || 'N/A',
           workshopName: m.workshopName || m.eventName || m.title || 'N/A',
+          workshopDuration: m.workshopDuration || m.duration || '3 Days',
           workshopDate: m.workshopDate || '2026',
-          verificationStatus: 'verified',
+          verificationStatus: (m.isVerified || m.verificationStatus === 'verified') ? 'verified' : 'pending',
           source: 'master',
           rawRecord: m
         });
@@ -132,37 +222,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
     });
   }, [allSearchableRecords, hasSearched, activeFilters]);
 
-  // Standardized College Options
-  const collegeOptions = useMemo(() => {
-    return [
-      "Narasaraopeta Engineering College",
-      "Tirumala Engineering College",
-      "AM Reddy College"
-    ];
-  }, []);
 
-  // Standardized Branch / Department Options
-  const departmentOptions = useMemo(() => {
-    return [
-      "Computer Science & Engineering",
-      "Computer Science (Artificial Intelligence & Machine Learning)",
-      "Computer Science (Artificial Intelligence)",
-      "Computer Science (Cyber Security)",
-      "Computer Science (Data Science)",
-      "Civil Engineering",
-      "Electronics & Communication Engineering (ECE)",
-      "Electrical & Electronics Engineering (EEE)",
-      "Mechanical Engineering",
-      "Pharmacy"
-    ];
-  }, []);
-
-  // Standardized Event / Workshop Options
-  const workshopOptions = useMemo(() => {
-    return [
-      "Idea to MVP - Entrepreneurship & Startups"
-    ];
-  }, []);
 
   const handleSearch = (e) => {
     if (e) e.preventDefault();
@@ -346,10 +406,10 @@ export default function StudentCertificatePortal({ records = [], certificates = 
             </div>
           </div>
 
-          {/* 5. Select Event / Workshop */}
+          {/* 5. Select Event / Workshop / Internship */}
           <div style={{ gridColumn: 'span 1' }}>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
-              Select Event / Workshop
+              Select Event / Workshop / Internship
             </label>
             <div style={{ position: 'relative' }}>
               <BookOpen size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
@@ -359,9 +419,11 @@ export default function StudentCertificatePortal({ records = [], certificates = 
                 value={filterForm.workshopName}
                 onChange={(e) => setFilterForm(prev => ({ ...prev, workshopName: e.target.value }))}
               >
-                <option value="">-- All Events / Workshops --</option>
+                <option value="">-- All Events, Workshops & Internships --</option>
                 {workshopOptions.map((w, i) => (
-                  <option key={i} value={w}>{w}</option>
+                  <option key={i} value={w.title}>
+                    {w.title} {w.duration ? `(${w.duration})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -393,7 +455,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
       {hasSearched && matchedRecords.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {matchedRecords.map((record, index) => {
-            const isVerified = record.verificationStatus === 'verified' || !record.verificationStatus || record.verificationStatus !== 'rejected';
+            const isVerified = record.verificationStatus === 'verified';
 
             return (
               <div key={record.id || index} className="submission-card" style={{ animation: 'fadeIn 0.35s ease' }}>
@@ -419,6 +481,21 @@ export default function StudentCertificatePortal({ records = [], certificates = 
                       border: '1px solid #bbf7d0'
                     }}>
                       <ShieldCheck size={16} /> OFFICIAL VERIFIED CERTIFICATE
+                    </span>
+                  ) : record.verificationStatus === 'rejected' ? (
+                    <span style={{
+                      background: '#fee2e2',
+                      color: '#b91c1c',
+                      padding: '0.4rem 1rem',
+                      borderRadius: '50px',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      border: '1px solid #fca5a5'
+                    }}>
+                      <XCircle size={16} /> REGISTRATION REJECTED
                     </span>
                   ) : (
                     <span style={{
@@ -453,7 +530,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
                       ID: {record.id}
                     </span>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontWeight: 600 }}>
-                      {record.workshopName} ({record.workshopDate || '2026'})
+                      {record.workshopName} {record.workshopDuration ? `• ⏱️ ${record.workshopDuration}` : `(${record.workshopDate || '2026'})`}
                     </div>
                   </div>
                 </div>
@@ -465,24 +542,42 @@ export default function StudentCertificatePortal({ records = [], certificates = 
                       <Award size={22} color="var(--primary)" />
                       Official Certificate of Participation
                     </h4>
-                    <CertificateGenerator record={record} showActions={true} />
+                    <CertificateGenerator record={record} showActions={true} portalSettings={portalSettings} />
+                  </div>
+                ) : record.verificationStatus === 'rejected' ? (
+                  /* REJECTED NOTICE - CERTIFICATE NOT ISSUED */
+                  <div style={{
+                    background: '#fff1f2',
+                    border: '1.5px solid #fecdd3',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '2rem 1.5rem',
+                    textAlign: 'center',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <XCircle size={38} color="#e11d48" style={{ margin: '0 auto 0.75rem' }} />
+                    <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#9f1239', marginBottom: '0.4rem' }}>
+                      Registration Request Rejected
+                    </h4>
+                    <p style={{ fontSize: '0.92rem', color: '#be123c', maxWidth: '580px', margin: '0 auto', lineHeight: 1.5 }}>
+                      This registration request <strong>({record.id})</strong> was reviewed and rejected by the administration. A certificate cannot be issued for this registration. If you have questions, please contact the coordinator or support team.
+                    </p>
                   </div>
                 ) : (
-                  /* PENDING APPROVAL NOTICE */
+                  /* PENDING APPROVAL NOTICE - CERTIFICATE LOCKED */
                   <div style={{
                     background: '#fffbeb',
                     border: '1.5px solid #fde68a',
                     borderRadius: 'var(--radius-lg)',
-                    padding: '1.5rem',
+                    padding: '2rem 1.5rem',
                     textAlign: 'center',
                     marginBottom: '1.5rem'
                   }}>
-                    <Clock size={32} color="#d97706" style={{ margin: '0 auto 0.75rem' }} />
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#92400e' }}>
-                      Certificate Pending Admin Approval
+                    <Clock size={38} color="#d97706" style={{ margin: '0 auto 0.75rem' }} />
+                    <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#92400e', marginBottom: '0.4rem' }}>
+                      Certificate Locked • Awaiting Admin Verification
                     </h4>
-                    <p style={{ fontSize: '0.9rem', color: '#b45309', marginTop: '0.35rem', maxWidth: '560px', margin: '0.35rem auto 0' }}>
-                      Your registration details match our database. Once the Admin approves and sends your certificate from the portal, it will immediately become available for download right here!
+                    <p style={{ fontSize: '0.92rem', color: '#b45309', maxWidth: '580px', margin: '0 auto', lineHeight: 1.5 }}>
+                      Your registration request <strong>({record.id})</strong> is currently awaiting review by the Administrator. To ensure authenticity, certificates are generated only after approval in the Admin Portal. Once verified by the admin, your certificate will automatically become available for download right here!
                     </p>
                   </div>
                 )}

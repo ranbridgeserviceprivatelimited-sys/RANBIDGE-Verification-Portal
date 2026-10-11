@@ -7,7 +7,7 @@ import CertificateDownloadBox from './CertificateDownloadBox';
 export default function VerificationCard({ record, certificates = [], onNewRegistration, showToast }) {
   const [selectedPreview, setSelectedPreview] = useState(null);
 
-  const isVerified = record.verificationStatus === 'verified' || !record.verificationStatus || record.verificationStatus !== 'rejected';
+  const isVerified = record.verificationStatus === 'verified';
 
   const handleDownload = (cert) => {
     if (!cert || !cert.fileData) return;
@@ -37,7 +37,7 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
             gap: '0.35rem',
             border: '1px solid #bbf7d0'
           }}>
-            <ShieldCheck size={15} /> VERIFIED WITH ADMIN PORTAL DATA
+            <ShieldCheck size={15} /> VERIFIED & APPROVED BY ADMIN
           </span>
         ) : (
           <span style={{
@@ -52,36 +52,55 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
             gap: '0.35rem',
             border: '1px solid #fde68a'
           }}>
-            <Clock size={15} /> PENDING ADMIN VERIFICATION
+            <Clock size={15} /> PENDING ADMIN APPROVAL
           </span>
         )}
       </div>
 
       {/* Instant Download Alert Banner */}
-      <div style={{
-        background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-        border: '1.5px solid #86efac',
-        borderRadius: 'var(--radius-md)',
-        padding: '1rem 1.25rem',
-        marginBottom: '1.5rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '0.75rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      {isVerified ? (
+        <div style={{
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+          border: '1.5px solid #86efac',
+          borderRadius: 'var(--radius-md)',
+          padding: '1rem 1.25rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem'
+        }}>
           <CheckCircle2 size={24} color="#16a34a" />
           <div>
             <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#14532d' }}>
-              Registration Verified & Submitted!
+              Registration Verified & Approved!
             </div>
             <div style={{ fontSize: '0.82rem', color: '#166534', marginTop: '0.1rem' }}>
               Official RANBIDGE Verification Credential generated below. You can download or print your certificate now.
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div style={{
+          background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+          border: '1.5px solid #fde68a',
+          borderRadius: 'var(--radius-md)',
+          padding: '1rem 1.25rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem'
+        }}>
+          <Clock size={24} color="#d97706" />
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#92400e' }}>
+              Registration Request Pending Admin Approval
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#b45309', marginTop: '0.1rem' }}>
+              Your details are submitted. Your certificate will be generated as soon as the administrator verifies your request in the Admin Portal.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Participant Summary Ribbon */}
       <div style={{
@@ -109,14 +128,33 @@ export default function VerificationCard({ record, certificates = [], onNewRegis
         </span>
       </div>
 
-      {/* OFFICIAL DYNAMIC RANBIDGE CERTIFICATE GENERATED FROM REFERENCE TEMPLATE */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Award size={20} color="var(--primary)" />
-          Official RANBIDGE Certificate of Participation
-        </h4>
-        <CertificateGenerator record={record} showActions={true} />
-      </div>
+      {/* OFFICIAL CERTIFICATE - GENERATED ONLY IF VERIFIED BY ADMIN */}
+      {isVerified ? (
+        <div style={{ marginBottom: '2rem' }}>
+          <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Award size={20} color="var(--primary)" />
+            Official RANBIDGE Certificate of Participation
+          </h4>
+          <CertificateGenerator record={record} showActions={true} />
+        </div>
+      ) : (
+        <div style={{
+          background: '#fffbeb',
+          border: '1.5px dashed #fcd34d',
+          borderRadius: 'var(--radius-lg)',
+          padding: '2rem 1.5rem',
+          textAlign: 'center',
+          marginBottom: '2rem'
+        }}>
+          <Clock size={38} color="#d97706" style={{ margin: '0 auto 0.75rem' }} />
+          <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#92400e', marginBottom: '0.4rem' }}>
+            Certificate Locked • Awaiting Admin Approval
+          </h4>
+          <p style={{ fontSize: '0.9rem', color: '#b45309', maxWidth: '540px', margin: '0 auto', lineHeight: 1.5 }}>
+            To protect credential integrity, certificates are generated only after admin verification in the Admin Portal. Once verified, return here to view and download your official certificate.
+          </p>
+        </div>
+      )}
 
 
 

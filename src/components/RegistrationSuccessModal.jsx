@@ -149,20 +149,31 @@ export default function RegistrationSuccessModal({ isOpen, record, onClose, onGo
             <div className="detail-item full-row">
               <BookOpen className="detail-icon" size={15} />
               <div>
-                <span className="detail-label">Workshop / Program</span>
-                <span className="detail-value">{record.workshopName || 'RANBIDGE Verification'}</span>
+                <span className="detail-label">Event / Workshop / Internship</span>
+                <span className="detail-value" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  <span>{record.workshopName || 'RANBIDGE Verification'}</span>
+                  {(record.workshopDuration || record.duration) && (
+                    <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.12rem 0.5rem', borderRadius: '50px', fontWeight: 700 }}>
+                      ⏱️ {record.workshopDuration || record.duration}
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Information Callout */}
-        <div className="success-info-banner" style={{ background: '#f8fafc', borderColor: '#cbd5e1' }}>
-          <Clock size={20} color="#0284c7" style={{ flexShrink: 0 }} />
+        <div className="success-info-banner" style={{ background: isVerified ? '#f0fdf4' : '#fffbeb', borderColor: isVerified ? '#bbf7d0' : '#fde68a' }}>
+          <Clock size={20} color={isVerified ? '#16a34a' : '#d97706'} style={{ flexShrink: 0 }} />
           <div>
-            <strong style={{ color: '#0f172a' }}>Certificate Issuance Notice:</strong>
-            <p style={{ color: '#475569', marginTop: '0.25rem', fontSize: '0.85rem' }}>
-              Your certificate will be automatically generated and issued once your registration is reviewed and accepted by the Administrator.
+            <strong style={{ color: isVerified ? '#14532d' : '#92400e' }}>
+              {isVerified ? 'Official Certificate Issued:' : 'Admin Approval Required for Certificate:'}
+            </strong>
+            <p style={{ color: isVerified ? '#166534' : '#b45309', marginTop: '0.25rem', fontSize: '0.85rem' }}>
+              {isVerified 
+                ? 'Your registration is verified and your official certificate has been generated.' 
+                : 'Your registration request has been submitted to the Admin. Without admin approval in the Admin Portal, your certificate will not be generated anywhere. Once the administrator verifies your request, your certificate will immediately become available for download.'}
             </p>
           </div>
         </div>
@@ -171,7 +182,7 @@ export default function RegistrationSuccessModal({ isOpen, record, onClose, onGo
         <div className="success-actions" style={{ justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <button className="btn-secondary" onClick={() => { onClose(); if (onGoToCertificates) onGoToCertificates(); }} style={{ padding: '0.7rem 1.25rem' }}>
             <Award size={18} />
-            <span>Verify Document & Certificate</span>
+            <span>Check Certificate Status</span>
           </button>
           <button className="btn-primary" onClick={onClose} style={{ padding: '0.7rem 1.5rem' }}>
             <CheckCircle2 size={18} />

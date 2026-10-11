@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Firebase Cloud Storage security rules for RANBIDGE Verification Portal
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Certificate images, PDF documents, and uploaded templates
+    match /certificates/{allPaths=**} {
+      allow read, write: if true;
+    }
+
+    // Event certificate backgrounds & logos
+    match /events/{allPaths=**} {
+      allow read, write: if true;
+    }
+
+    // Universal catch-all for storage files
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}

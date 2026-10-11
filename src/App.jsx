@@ -11,7 +11,7 @@ import Footer from './components/Footer';
 import { CheckCircle2 } from 'lucide-react';
 
 // Firebase Imports
-import { db, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from './firebase';
+import { db, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, setDoc, getDoc, getDocs } from './firebase';
 
 // IndexedDB Persistence Import for large binary certificate files
 import { 
@@ -19,6 +19,16 @@ import {
   getCertificatesFromIDB, 
   deleteCertificateFromIDB 
 } from './utils/indexedDB';
+
+export const UNNECESSARY_DEMO_FOLDERS = [
+  'church project',
+  'demo python cource',
+  'demo python course',
+  'company posters',
+  'ide bootcamp files',
+  'lms data',
+  'ranbidge-verification-portal'
+];
 
 const STORAGE_KEY = 'ranbidge_registrations';
 const CERTS_STORAGE_KEY = 'ranbidge_certificates';
@@ -88,64 +98,198 @@ export default function App() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
-  // Portal Settings (Dynamic Colleges, Workshops, & Departments options managed by Admin)
+  // Portal Settings (Dynamic Colleges, Workshops, Programs/Internships, & Departments managed by Admin)
   const [portalSettings, setPortalSettings] = useState(() => {
+    const initialPrograms = [
+      {
+        id: 'prog-1',
+        title: 'Idea to MVP - Entrepreneurship & Startups',
+        type: 'Workshop',
+        duration: '3 Days',
+        date: '2026',
+        department: 'All Engineering & Management Branches',
+        description: 'Practical startup ideation, prototyping, MVP building, and business model canvas.'
+      },
+      {
+        id: 'prog-2',
+        title: 'Full Stack Web Development Internship',
+        type: 'Internship',
+        duration: '2 Months',
+        date: '2026',
+        department: 'CSE / IT / ECE',
+        description: 'Hands-on frontend, backend API integration, cloud deployment, and live capstone project.'
+      },
+      {
+        id: 'prog-3',
+        title: 'Artificial Intelligence & Machine Learning Bootcamp',
+        type: 'Bootcamp',
+        duration: '1 Month',
+        date: '2026',
+        department: 'CSE / AI & ML / Data Science',
+        description: 'Deep dive into computer vision, NLP, generative models, and industry AI pipelines.'
+      },
+      {
+        id: 'prog-4',
+        title: 'National Student Innovation Hackathon 2026',
+        type: 'Hackathon',
+        duration: '48 Hours',
+        date: '2026',
+        department: 'All Branches',
+        description: 'Collaborative coding competition solving real-world challenges with industry jury evaluation.'
+      }
+    ];
+
+    const initialColleges = [
+      "Narasaraopeta Engineering College",
+      "Tirumala Engineering College",
+      "AM Reddy College"
+    ];
+
+    const initialDepartments = [
+      "Computer Science & Engineering",
+      "Computer Science (Artificial Intelligence & Machine Learning)",
+      "Computer Science (Artificial Intelligence)",
+      "Computer Science (Cyber Security)",
+      "Computer Science (Data Science)",
+      "Civil Engineering",
+      "Electronics & Communication Engineering (ECE)",
+      "Electrical & Electronics Engineering (EEE)",
+      "Mechanical Engineering",
+      "Pharmacy"
+    ];
+
     try {
       const saved = localStorage.getItem('ranbidge_portal_settings');
-      return saved ? JSON.parse(saved) : {
-        colleges: [
-          "Narasaraopeta Engineering College",
-          "Tirumala Engineering College",
-          "AM Reddy College"
-        ],
-        workshops: [
-          "Idea to MVP - Entrepreneurship & Startups"
-        ],
-        departments: [
-          "Computer Science & Engineering",
-          "Computer Science (Artificial Intelligence & Machine Learning)",
-          "Computer Science (Artificial Intelligence)",
-          "Computer Science (Cyber Security)",
-          "Computer Science (Data Science)",
-          "Civil Engineering",
-          "Electronics & Communication Engineering (ECE)",
-          "Electrical & Electronics Engineering (EEE)",
-          "Mechanical Engineering",
-          "Pharmacy"
-        ]
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.programs || !Array.isArray(parsed.programs) || parsed.programs.length === 0) {
+          const legacyWorkshops = parsed.workshops || [];
+          const merged = [...initialPrograms];
+          legacyWorkshops.forEach((w, idx) => {
+            const wTitle = typeof w === 'string' ? w : w.title;
+            if (wTitle && !merged.some(m => m.title.toLowerCase() === wTitle.toLowerCase())) {
+              merged.push({
+                id: `prog-legacy-${idx}`,
+                title: wTitle,
+                type: 'Workshop',
+                duration: '2026',
+                department: 'All Branches',
+                description: ''
+              });
+            }
+          });
+          parsed.programs = merged;
+          parsed.workshops = merged.map(m => m.title);
+        }
+        return {
+          colleges: parsed.colleges || initialColleges,
+          programs: parsed.programs,
+          workshops: parsed.workshops || parsed.programs.map(p => typeof p === 'string' ? p : p.title),
+          departments: parsed.departments || initialDepartments
+        };
+      }
+      return {
+        colleges: initialColleges,
+        programs: initialPrograms,
+        workshops: initialPrograms.map(p => p.title),
+        departments: initialDepartments
       };
     } catch (e) {
       return {
-        colleges: ["Narasaraopeta Engineering College", "Tirumala Engineering College", "AM Reddy College"],
-        workshops: ["Idea to MVP - Entrepreneurship & Startups"],
-        departments: [
-          "Computer Science & Engineering",
-          "Computer Science (Artificial Intelligence & Machine Learning)",
-          "Computer Science (Artificial Intelligence)",
-          "Computer Science (Cyber Security)",
-          "Computer Science (Data Science)",
-          "Civil Engineering",
-          "Electronics & Communication Engineering (ECE)",
-          "Electrical & Electronics Engineering (EEE)",
-          "Mechanical Engineering",
-          "Pharmacy"
-        ]
+        colleges: initialColleges,
+        programs: initialPrograms,
+        workshops: initialPrograms.map(p => p.title),
+        departments: initialDepartments
       };
     }
   });
 
-  const handleSavePortalSettings = (newSettings) => {
-    setPortalSettings(newSettings);
+  // Custom Folders State with sanitization of unnecessary demo items
+  const [customFolders, setCustomFolders] = useState(() => {
     try {
-      localStorage.setItem('ranbidge_portal_settings', JSON.stringify(newSettings));
+      const saved = localStorage.getItem('ranbidge_custom_folders');
+      const list = saved ? JSON.parse(saved) : [
+        { id: 'f-1', name: 'RANBIDGE Certificate Center' },
+        { id: 'f-2', name: 'Company Documents' }
+      ];
+      return list.filter(f => f && f.name && !UNNECESSARY_DEMO_FOLDERS.includes(f.name.toLowerCase()));
+    } catch (e) {
+      return [
+        { id: 'f-1', name: 'RANBIDGE Certificate Center' },
+        { id: 'f-2', name: 'Company Documents' }
+      ];
+    }
+  });
+
+  // Deleted Folders List State with sanitization of unnecessary demo items
+  const [deletedFolderNames, setDeletedFolderNames] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ranbidge_deleted_folders');
+      const list = saved ? JSON.parse(saved) : [];
+      return Array.from(new Set([...list.map(n => String(n).toLowerCase()), ...UNNECESSARY_DEMO_FOLDERS]));
+    } catch (e) {
+      return [...UNNECESSARY_DEMO_FOLDERS];
+    }
+  });
+
+  // Save Folders to state, localStorage, and Firestore
+  const handleSaveFolders = async (newCustomFolders, newDeletedFolderNames) => {
+    const sanitizedFolders = (newCustomFolders || []).filter(f => 
+      f && f.name && !UNNECESSARY_DEMO_FOLDERS.includes(f.name.toLowerCase())
+    );
+    const sanitizedDeleted = Array.from(new Set([
+      ...(newDeletedFolderNames || []).map(n => String(n).toLowerCase()),
+      ...UNNECESSARY_DEMO_FOLDERS
+    ]));
+
+    setCustomFolders(sanitizedFolders);
+    setDeletedFolderNames(sanitizedDeleted);
+
+    try {
+      localStorage.setItem('ranbidge_custom_folders', JSON.stringify(sanitizedFolders));
+      localStorage.setItem('ranbidge_deleted_folders', JSON.stringify(sanitizedDeleted));
     } catch (e) {}
+
+    try {
+      await setDoc(doc(db, 'portal_settings', 'dashboard_folders'), {
+        customFolders: sanitizedFolders,
+        deletedFolderNames: sanitizedDeleted,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error('Error saving dashboard folders to Firestore:', err);
+    }
   };
 
-  // Persist Active Tab to localStorage across browser refresh
+  const handleSavePortalSettings = async (newSettings) => {
+    // Keep workshops array synchronized with programs titles
+    const updated = { ...newSettings };
+    if (Array.isArray(updated.programs)) {
+      updated.workshops = updated.programs.map(p => typeof p === 'string' ? p : p.title).filter(Boolean);
+    }
+    setPortalSettings(updated);
+    try {
+      localStorage.setItem('ranbidge_portal_settings', JSON.stringify(updated));
+    } catch (e) {}
+
+    try {
+      await setDoc(doc(db, 'portal_settings', 'config'), {
+        portalSettings: updated,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error('Error saving portal settings to Firestore:', err);
+    }
+  };
+
+  // Persist Active Tab to localStorage across browser refresh & ensure clean top scroll
   useEffect(() => {
     try {
       localStorage.setItem('ranbidge_active_tab', activeTab);
     } catch (err) {}
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
   }, [activeTab]);
 
   // Persist Admin Unlocked status to sessionStorage across browser refresh
@@ -275,30 +419,67 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 5. Dynamic Auto-Verification Sync: Auto-verify records when matched with master dump
+  // 5. Listen to Firestore dashboard_folders updates (real-time sync)
   useEffect(() => {
-    if (masterDump.length === 0) return;
-
-    const masterSet = new Set(masterDump.map(m => m.rollNumber ? m.rollNumber.trim().toUpperCase() : ''));
-
-    setRecords(prevRecords => {
-      if (!prevRecords || prevRecords.length === 0) return prevRecords;
-      let hasChanges = false;
-      const updatedRecords = prevRecords.map(rec => {
-        const rollKey = rec.rollNumber ? rec.rollNumber.trim().toUpperCase() : '';
-        if (masterSet.has(rollKey) && rec.verificationStatus !== 'verified') {
-          hasChanges = true;
-          return {
-            ...rec,
-            verificationStatus: 'verified',
-            verifiedAt: rec.verifiedAt || new Date().toLocaleString()
-          };
+    let unsubscribe = () => {};
+    try {
+      const docRef = doc(db, 'portal_settings', 'dashboard_folders');
+      unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (Array.isArray(data.customFolders)) {
+            const sanitized = data.customFolders.filter(f => 
+              f && f.name && !UNNECESSARY_DEMO_FOLDERS.includes(f.name.toLowerCase())
+            );
+            setCustomFolders(sanitized);
+            try {
+              localStorage.setItem('ranbidge_custom_folders', JSON.stringify(sanitized));
+            } catch (e) {}
+          }
+          if (Array.isArray(data.deletedFolderNames)) {
+            const mergedDeleted = Array.from(new Set([
+              ...data.deletedFolderNames.map(n => String(n).toLowerCase()),
+              ...UNNECESSARY_DEMO_FOLDERS
+            ]));
+            setDeletedFolderNames(mergedDeleted);
+            try {
+              localStorage.setItem('ranbidge_deleted_folders', JSON.stringify(mergedDeleted));
+            } catch (e) {}
+          }
         }
-        return rec;
+      }, (err) => {
+        console.warn('Firestore dashboard_folders listener fallback:', err);
       });
-      return hasChanges ? updatedRecords : prevRecords;
-    });
-  }, [masterDump]);
+    } catch (err) {
+      console.warn('Firebase dashboard_folders init fallback:', err);
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // 6. Listen to Firestore portal_settings config updates
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      const docRef = doc(db, 'portal_settings', 'config');
+      unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && data.portalSettings) {
+            setPortalSettings(prev => ({ ...prev, ...data.portalSettings }));
+            try {
+              localStorage.setItem('ranbidge_portal_settings', JSON.stringify(data.portalSettings));
+            } catch (e) {}
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore portal_settings config fallback:', err);
+      });
+    } catch (err) {
+      console.warn('Firebase portal_settings fallback:', err);
+    }
+    return () => unsubscribe();
+  }, []);
+
 
   // Sync registration records state to localStorage
   useEffect(() => {
@@ -532,6 +713,57 @@ export default function App() {
     }
 
     showToast(`✅ Registration accepted & certificate generated for ${targetRecord.fullName}!`);
+  };
+
+  // Reject Registration Handler
+  const handleRejectRecord = async (id) => {
+    let targetRecord = null;
+    const updatedRecords = records.map(r => {
+      if (r.id === id || r.firestoreId === id) {
+        targetRecord = {
+          ...r,
+          verificationStatus: 'rejected',
+          rejectedAt: new Date().toLocaleString()
+        };
+        return targetRecord;
+      }
+      return r;
+    });
+
+    if (!targetRecord) return;
+
+    setRecords(updatedRecords);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedRecords));
+    } catch (e) {}
+
+    // Update in Firestore if present
+    if (targetRecord.firestoreId) {
+      try {
+        await updateDoc(doc(db, 'registrations', targetRecord.firestoreId), {
+          verificationStatus: 'rejected',
+          rejectedAt: targetRecord.rejectedAt
+        });
+      } catch (err) {
+        console.error('Error updating Firestore registration status to rejected:', err);
+      }
+    }
+
+    // Auto revoke / remove active certificate if it was generated
+    const rollKey = targetRecord.rollNumber ? targetRecord.rollNumber.trim().toUpperCase() : '';
+    if (rollKey) {
+      const remainingCerts = certificates.filter(c => 
+        !c.rollNumber || c.rollNumber.trim().toUpperCase() !== rollKey
+      );
+      if (remainingCerts.length !== certificates.length) {
+        setCertificates(remainingCerts);
+        try {
+          localStorage.setItem('ranbidge_certificates', JSON.stringify(remainingCerts));
+        } catch (e) {}
+      }
+    }
+
+    showToast(`❌ Registration rejected for ${targetRecord.fullName || 'student'}`);
   };
 
   // Delete record handler
@@ -769,6 +1001,7 @@ export default function App() {
                   records={records}
                   certificates={certificates}
                   masterDump={masterDump}
+                  portalSettings={portalSettings}
                   initialSearchQuery={latestRecord ? (latestRecord.rollNumber || latestRecord.fullName) : ''}
                   onNewRegistration={() => setActiveTab('register')}
                   showToast={showToast}
@@ -814,9 +1047,13 @@ export default function App() {
         certificates={certificates}
         masterDump={masterDump}
         portalSettings={portalSettings}
+        customFolders={customFolders}
+        deletedFolderNames={deletedFolderNames}
+        onSaveFolders={handleSaveFolders}
         onSavePortalSettings={handleSavePortalSettings}
         onDeleteRecord={handleDeleteRecord}
         onVerifyRecord={handleVerifyRecord}
+        onRejectRecord={handleRejectRecord}
         onAddRecord={handleRegistrationSubmit}
         onClearAllRecords={handleClearAll}
         onLoadSampleData={handleLoadSampleData}

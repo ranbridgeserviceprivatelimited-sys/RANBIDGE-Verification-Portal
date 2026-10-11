@@ -38,11 +38,17 @@ import {
   Clipboard,
   Plus,
   Clock,
-  Settings
+  Settings,
+  XCircle,
+  UserX,
+  ShieldCheck
 } from 'lucide-react';
 import CertificateDumpUpload from './CertificateDumpUpload';
 import CertificateGenerator from './CertificateGenerator';
 import MasterRollDump from './MasterRollDump';
+import ProgramsEventsManager from './ProgramsEventsManager';
+import { db, doc, setDoc } from '../firebase';
+import { UNNECESSARY_DEMO_FOLDERS } from '../App';
 
 export default function AdminPortalModal({
   isOpen,
@@ -51,9 +57,13 @@ export default function AdminPortalModal({
   certificates,
   masterDump = [],
   portalSettings = {},
+  customFolders: propCustomFolders,
+  deletedFolderNames: propDeletedFolderNames,
+  onSaveFolders,
   onSavePortalSettings,
   onDeleteRecord,
   onVerifyRecord,
+  onRejectRecord,
   onAddRecord,
   onClearAllRecords,
   onLoadSampleData,
@@ -104,21 +114,40 @@ export default function AdminPortalModal({
     const val = newWorkshopInput.trim();
     if (!val) return;
     if (currentWorkshops.map(w => w.toLowerCase()).includes(val.toLowerCase())) {
-      if (showToast) showToast('Workshop title already exists in list', 'info');
+      if (showToast) showToast('Workshop / Event already exists in list', 'info');
       return;
     }
     const updated = [...currentWorkshops, val];
+    const currentProgs = Array.isArray(portalSettings.programs) ? portalSettings.programs : [];
+    const newProg = {
+      id: 'prog-' + Date.now(),
+      title: val,
+      type: 'Workshop',
+      duration: '2026',
+      department: 'All Branches',
+      description: ''
+    };
     if (onSavePortalSettings) {
-      onSavePortalSettings({ ...portalSettings, workshops: updated });
+      onSavePortalSettings({
+        ...portalSettings,
+        workshops: updated,
+        programs: [newProg, ...currentProgs]
+      });
     }
     setNewWorkshopInput('');
-    if (showToast) showToast(`Added "${val}" to Workshop titles list`, 'success');
+    if (showToast) showToast(`Added "${val}" to Programs list`, 'success');
   };
 
   const handleDeleteWorkshop = (workshopTitle) => {
     const updated = currentWorkshops.filter(w => w !== workshopTitle);
+    const currentProgs = Array.isArray(portalSettings.programs) ? portalSettings.programs : [];
+    const updatedProgs = currentProgs.filter(p => (typeof p === 'string' ? p : p.title).toLowerCase() !== workshopTitle.toLowerCase());
     if (onSavePortalSettings) {
-      onSavePortalSettings({ ...portalSettings, workshops: updated });
+      onSavePortalSettings({
+        ...portalSettings,
+        workshops: updated,
+        programs: updatedProgs
+      });
     }
     if (showToast) showToast(`Removed "${workshopTitle}"`, 'info');
   };
@@ -204,16 +233,20 @@ export default function AdminPortalModal({
   const [selectedPreviewCert, setSelectedPreviewCert] = useState(null);
   const [selectedGeneratedCertRecord, setSelectedGeneratedCertRecord] = useState(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // Opened Dedicated Folder Page State
+  const [openedFolderPage, setOpenedFolderPage] = useState(null);
+  const [openedFolderTab, setOpenedFolderTab] = useState('records'); // 'records' | 'certificates'
 
   // Folder File Upload Ref & Direct Upload Handler
   const folderFileInputRef = useRef(null);
 
-  const processAndUploadFiles = (filesList, targetFolder = openedFolderPage) => {
+  const processAndUploadFiles = (filesList, targetFolder = null) => {
     const files = Array.from(filesList || []);
     if (files.length === 0) return;
 
-    const folderNameStr = targetFolder ? targetFolder.name : 'Root Dashboard';
-    const folderIdStr = targetFolder ? targetFolder.id : null;
+    const activeFolder = targetFolder || openedFolderPage;
+    const folderNameStr = activeFolder ? activeFolder.name : 'Root Dashboard';
+    const folderIdStr = activeFolder ? activeFolder.id : null;
 
     const newCerts = [];
     let completed = 0;
@@ -285,14 +318,14 @@ export default function AdminPortalModal({
     setIsDraggingOver(false);
   };
 
-  const handleDropFiles = (e, targetFolder = openedFolderPage) => {
+  const handleDropFiles = (e, targetFolder = null) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
 
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      processAndUploadFiles(files, targetFolder);
+      processAndUploadFiles(files, targetFolder || openedFolderPage);
     }
   };
 
@@ -305,18 +338,16 @@ export default function AdminPortalModal({
 
   // File Explorer Custom Folders & Directory Drive State
   const [customFolders, setCustomFolders] = useState(() => {
+    if (Array.isArray(propCustomFolders) && propCustomFolders.length > 0) {
+      return propCustomFolders.filter(f => f && f.name && !UNNECESSARY_DEMO_FOLDERS.includes(f.name.toLowerCase()));
+    }
     try {
       const saved = localStorage.getItem('ranbidge_custom_folders');
-      return saved ? JSON.parse(saved) : [
+      const list = saved ? JSON.parse(saved) : [
         { id: 'f-1', name: 'RANBIDGE Certificate Center' },
-        { id: 'f-2', name: 'Company Documents' },
-        { id: 'f-3', name: 'Company Posters' },
-        { id: 'f-4', name: 'IDE BootCamp Files' },
-        { id: 'f-5', name: 'Church project' },
-        { id: 'f-6', name: 'Demo Python Cource' },
-        { id: 'f-7', name: 'LMS Data' },
-        { id: 'f-8', name: 'RANBIDGE-Verification-Portal' }
+        { id: 'f-2', name: 'Company Documents' }
       ];
+      return list.filter(f => f && f.name && !UNNECESSARY_DEMO_FOLDERS.includes(f.name.toLowerCase()));
     } catch (e) {
       return [
         { id: 'f-1', name: 'RANBIDGE Certificate Center' },
@@ -325,22 +356,60 @@ export default function AdminPortalModal({
     }
   });
 
-  // Deleted Folders List State (persisted to localStorage)
+  // Deleted Folders List State (persisted to localStorage & Firestore)
   const [deletedFolderNames, setDeletedFolderNames] = useState(() => {
+    if (Array.isArray(propDeletedFolderNames) && propDeletedFolderNames.length > 0) {
+      return Array.from(new Set([...propDeletedFolderNames.map(n => String(n).toLowerCase()), ...UNNECESSARY_DEMO_FOLDERS]));
+    }
     try {
       const saved = localStorage.getItem('ranbidge_deleted_folders');
-      return saved ? JSON.parse(saved) : [];
+      const list = saved ? JSON.parse(saved) : [];
+      return Array.from(new Set([...list.map(n => String(n).toLowerCase()), ...UNNECESSARY_DEMO_FOLDERS]));
     } catch (e) {
-      return [];
+      return [...UNNECESSARY_DEMO_FOLDERS];
     }
   });
 
-  // Sync deleted folders to localStorage
+  // Synchronize when parent Firebase props update
   useEffect(() => {
+    if (Array.isArray(propCustomFolders)) {
+      setCustomFolders(propCustomFolders.filter(f => f && f.name && !UNNECESSARY_DEMO_FOLDERS.includes(f.name.toLowerCase())));
+    }
+  }, [propCustomFolders]);
+
+  useEffect(() => {
+    if (Array.isArray(propDeletedFolderNames)) {
+      setDeletedFolderNames(Array.from(new Set([...propDeletedFolderNames.map(n => String(n).toLowerCase()), ...UNNECESSARY_DEMO_FOLDERS])));
+    }
+  }, [propDeletedFolderNames]);
+
+  // Unified folder persistence to LocalStorage, Parent State & Firestore
+  const persistFolders = async (updatedCustom, updatedDeleted) => {
+    const cleanCustom = (updatedCustom || []).filter(f => f && f.name && !UNNECESSARY_DEMO_FOLDERS.includes(f.name.toLowerCase()));
+    const cleanDeleted = Array.from(new Set([...(updatedDeleted || []).map(n => String(n).toLowerCase()), ...UNNECESSARY_DEMO_FOLDERS]));
+
+    setCustomFolders(cleanCustom);
+    setDeletedFolderNames(cleanDeleted);
+
     try {
-      localStorage.setItem('ranbidge_deleted_folders', JSON.stringify(deletedFolderNames));
+      localStorage.setItem('ranbidge_custom_folders', JSON.stringify(cleanCustom));
+      localStorage.setItem('ranbidge_deleted_folders', JSON.stringify(cleanDeleted));
     } catch (e) {}
-  }, [deletedFolderNames]);
+
+    if (onSaveFolders) {
+      onSaveFolders(cleanCustom, cleanDeleted);
+    }
+
+    try {
+      await setDoc(doc(db, 'portal_settings', 'dashboard_folders'), {
+        customFolders: cleanCustom,
+        deletedFolderNames: cleanDeleted,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Direct Firestore folders save warning:', err);
+    }
+  };
 
   // Folder Multi-Selection & Range Navigation State
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
@@ -380,10 +449,31 @@ export default function AdminPortalModal({
 
   // Settings Popover State
   const [isSettingsPopoverOpen, setIsSettingsPopoverOpen] = useState(false);
+  const settingsPopoverRef = useRef(null);
 
-  // Opened Dedicated Folder Page State
-  const [openedFolderPage, setOpenedFolderPage] = useState(null);
-  const [openedFolderTab, setOpenedFolderTab] = useState('records'); // 'records' | 'certificates'
+  // Close Settings Popover on outside click or Escape key
+  useEffect(() => {
+    if (!isSettingsPopoverOpen) return;
+
+    const handlePointerDown = (e) => {
+      if (settingsPopoverRef.current && !settingsPopoverRef.current.contains(e.target)) {
+        setIsSettingsPopoverOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsSettingsPopoverOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSettingsPopoverOpen]);
 
   // Download single certificate image helper
   const downloadSingleCertificate = (rec) => {
@@ -594,9 +684,79 @@ export default function AdminPortalModal({
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, folder: null });
   const [renameModal, setRenameModal] = useState({ isOpen: false, folder: null, newName: '' });
 
+  // Global Escape key handler for all Admin Portal modals, popovers, and dialogs
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleGlobalEsc = (e) => {
+      if (e.key !== 'Escape') return;
+
+      // Close top-most sub-dialogs first in order of layer depth
+      if (isSettingsPopoverOpen) {
+        setIsSettingsPopoverOpen(false);
+        return;
+      }
+      if (activePopover) {
+        setActivePopover(null);
+        return;
+      }
+      if (selectedPreviewCert) {
+        setSelectedPreviewCert(null);
+        return;
+      }
+      if (selectedGeneratedCertRecord) {
+        setSelectedGeneratedCertRecord(null);
+        return;
+      }
+      if (viewingStudentDetail) {
+        setViewingStudentDetail(null);
+        return;
+      }
+      if (isFormSettingsModalOpen) {
+        setIsFormSettingsModalOpen(false);
+        return;
+      }
+      if (isUsersDirectoryOpen) {
+        setIsUsersDirectoryOpen(false);
+        return;
+      }
+      if (isCollegesDirectoryModalOpen) {
+        setIsCollegesDirectoryModalOpen(false);
+        return;
+      }
+      if (openedFolderPage) {
+        setOpenedFolderPage(null);
+        return;
+      }
+
+      // If no sub-dialog is active, close the entire Admin Portal modal
+      if (onClose) {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalEsc);
+    return () => window.removeEventListener('keydown', handleGlobalEsc);
+  }, [
+    isOpen,
+    isSettingsPopoverOpen,
+    activePopover,
+    selectedPreviewCert,
+    selectedGeneratedCertRecord,
+    viewingStudentDetail,
+    isFormSettingsModalOpen,
+    isUsersDirectoryOpen,
+    isCollegesDirectoryModalOpen,
+    openedFolderPage,
+    onClose
+  ]);
+
   // Dynamic Dashboard Folders List (Custom Admin Folders + Colleges + Workshops - Filtered by Deleted Folders)
   const allFoldersList = useMemo(() => {
-    const deletedSet = new Set(deletedFolderNames.map(n => n.toLowerCase()));
+    const deletedSet = new Set([
+      ...deletedFolderNames.map(n => n.toLowerCase()),
+      ...UNNECESSARY_DEMO_FOLDERS
+    ]);
 
     const collegeMap = {};
     records.forEach(r => {
@@ -828,8 +988,9 @@ export default function AdminPortalModal({
       createdAt: new Date().toLocaleString()
     };
 
-    setDeletedFolderNames(prev => prev.filter(n => n.toLowerCase() !== workshopName.toLowerCase() && n.toLowerCase() !== folder.id.toLowerCase()));
-    setCustomFolders(prev => [...prev, folder]);
+    const updatedDeleted = deletedFolderNames.filter(n => n.toLowerCase() !== workshopName.toLowerCase() && n.toLowerCase() !== folder.id.toLowerCase());
+    const updatedCustom = [...customFolders, folder];
+    persistFolders(updatedCustom, updatedDeleted);
     setIsWorkshopModalOpen(false);
     const targetLoc = parentFolder ? `folder "${parentFolder.name}"` : 'Root Dashboard';
     if (showToast) showToast(`🛠️ Created workshop "${workshopName}" inside ${targetLoc}!`);
@@ -866,7 +1027,7 @@ export default function AdminPortalModal({
       const cutNames = folderClipboard.folders.map(f => f.name.toLowerCase());
 
       // Update parentId and parentName for all cut folders
-      setCustomFolders(prev => prev.map(f => {
+      const updatedCustom = customFolders.map(f => {
         if (cutIds.includes(f.id) || cutNames.includes(f.name.toLowerCase())) {
           return {
             ...f,
@@ -875,10 +1036,11 @@ export default function AdminPortalModal({
           };
         }
         return f;
-      }));
+      });
 
       // Ensure cut folders are restored if in deleted set
-      setDeletedFolderNames(prev => prev.filter(n => !cutNames.includes(n.toLowerCase())));
+      const updatedDeleted = deletedFolderNames.filter(n => !cutNames.includes(n.toLowerCase()));
+      persistFolders(updatedCustom, updatedDeleted);
 
       setFolderClipboard({ folders: [], mode: null });
       setContextMenu({ visible: false, x: 0, y: 0, folder: null });
@@ -893,7 +1055,8 @@ export default function AdminPortalModal({
         createdAt: new Date().toLocaleString()
       }));
 
-      setCustomFolders(prev => [...prev, ...newFolderCopies]);
+      const updatedCustom = [...customFolders, ...newFolderCopies];
+      persistFolders(updatedCustom, deletedFolderNames);
       setContextMenu({ visible: false, x: 0, y: 0, folder: null });
       if (showToast) showToast(`📋 Copied ${newFolderCopies.length} folder(s) into ${destName}!`);
     }
@@ -983,15 +1146,17 @@ export default function AdminPortalModal({
     const targetFolder = renameModal.folder;
     const updatedName = renameModal.newName.trim();
 
-    setCustomFolders(prev => prev.map(f => f.id === targetFolder.id ? { ...f, name: updatedName } : f));
+    const updatedCustom = customFolders.map(f => f.id === targetFolder.id ? { ...f, name: updatedName } : f);
+    persistFolders(updatedCustom, deletedFolderNames);
     setRenameModal({ isOpen: false, folder: null, newName: '' });
     if (showToast) showToast(`✏️ Folder renamed to "${updatedName}"!`);
   };
 
   const handleDeleteFolder = (folder) => {
     if (window.confirm(`Are you sure you want to delete folder "${folder.name}"?`)) {
-      setCustomFolders(prev => prev.filter(f => f.id !== folder.id && f.name !== folder.name));
-      setDeletedFolderNames(prev => Array.from(new Set([...prev, folder.name.toLowerCase(), folder.id.toLowerCase()])));
+      const updatedCustom = customFolders.filter(f => f.id !== folder.id && f.name.toLowerCase() !== folder.name.toLowerCase());
+      const updatedDeleted = Array.from(new Set([...deletedFolderNames, folder.name.toLowerCase(), folder.id.toLowerCase()]));
+      persistFolders(updatedCustom, updatedDeleted);
       setSelectedFolderIds(prev => prev.filter(id => id !== folder.id));
       setContextMenu({ visible: false, x: 0, y: 0, folder: null });
       if (showToast) showToast(`🗑️ Deleted folder "${folder.name}"`);
@@ -1011,8 +1176,9 @@ export default function AdminPortalModal({
       : `Are you sure you want to delete these ${targetFolders.length} selected folders?\n\n` + targetNames.slice(0, 5).map(n => `- ${n}`).join('\n') + (targetNames.length > 5 ? `\n...and ${targetNames.length - 5} more` : '');
 
     if (window.confirm(confirmMsg)) {
-      setCustomFolders(prev => prev.filter(f => !selectedFolderIds.includes(f.id) && !targetNames.includes(f.name)));
-      setDeletedFolderNames(prev => Array.from(new Set([...prev, ...targetKeys])));
+      const updatedCustom = customFolders.filter(f => !selectedFolderIds.includes(f.id) && !targetNames.some(t => t.toLowerCase() === f.name.toLowerCase()));
+      const updatedDeleted = Array.from(new Set([...deletedFolderNames, ...targetKeys]));
+      persistFolders(updatedCustom, updatedDeleted);
       setSelectedFolderIds([]);
       setAnchorFolderIndex(null);
       setCurrentFolderIndex(null);
@@ -1021,13 +1187,6 @@ export default function AdminPortalModal({
       if (showToast) showToast(`🗑️ Deleted ${targetFolders.length} folder(s)`);
     }
   };
-
-  // Persist Custom Folders
-  useEffect(() => {
-    try {
-      localStorage.setItem('ranbidge_custom_folders', JSON.stringify(customFolders));
-    } catch (e) {}
-  }, [customFolders]);
 
   const handleCreateFolder = (e) => {
     e.preventDefault();
@@ -1040,8 +1199,9 @@ export default function AdminPortalModal({
       parentName: openedFolderPage ? openedFolderPage.name : null,
       createdAt: new Date().toLocaleString()
     };
-    setDeletedFolderNames(prev => prev.filter(n => n.toLowerCase() !== folderName.toLowerCase() && n.toLowerCase() !== folder.id.toLowerCase()));
-    setCustomFolders(prev => [...prev, folder]);
+    const updatedDeleted = deletedFolderNames.filter(n => n.toLowerCase() !== folderName.toLowerCase() && n.toLowerCase() !== folder.id.toLowerCase());
+    const updatedCustom = [...customFolders, folder];
+    persistFolders(updatedCustom, updatedDeleted);
     setNewFolderName('');
     setIsAddFolderModalOpen(false);
     const targetLoc = openedFolderPage ? `folder "${openedFolderPage.name}"` : 'Root Dashboard';
@@ -1308,8 +1468,9 @@ export default function AdminPortalModal({
     const validColleges = collegeBreakdown.filter(c => c.name !== 'Unspecified College' || c.records.length > 0 || c.certificates.length > 0);
     const collegesCount = validColleges.length;
     const certsCount = certificates.length;
-    return { total, collegesCount, certsCount };
-  }, [records, certificates, collegeBreakdown]);
+    const programsCount = (portalSettings.programs || portalSettings.workshops || []).length;
+    return { total, collegesCount, certsCount, programsCount };
+  }, [records, certificates, collegeBreakdown, portalSettings.programs, portalSettings.workshops]);
 
   const uniqueOptions = useMemo(() => {
     const getUnique = (key) => {
@@ -1760,7 +1921,7 @@ export default function AdminPortalModal({
   return (
     <>
       <div className="admin-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1200, padding: 0 }} onClick={onClose}>
-        <div className="admin-modal-container" style={{ maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1.75rem 2rem', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal-container admin-fullscreen-portal" style={{ maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
           
           {/* Admin Modal Header */}
           <div className="admin-header" style={{ position: 'relative' }}>
@@ -1772,7 +1933,7 @@ export default function AdminPortalModal({
               <p>Manage registrations, inspect user profiles, and dump certificate files for user downloads.</p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
+            <div ref={settingsPopoverRef} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative', flexShrink: 0 }}>
               {/* Settings Icon Button (Left side of Close icon) */}
               <button
                 type="button"
@@ -1797,7 +1958,7 @@ export default function AdminPortalModal({
                 <div style={{
                   position: 'absolute',
                   top: 'calc(100% + 0.6rem)',
-                  right: '2.5rem',
+                  right: '0',
                   background: '#ffffff',
                   border: '1.5px solid var(--border-color)',
                   borderRadius: 'var(--radius-md)',
@@ -1814,12 +1975,9 @@ export default function AdminPortalModal({
                   <button
                     type="button"
                     onClick={() => {
-                      setDeletedFolderNames([]);
-                      try {
-                        localStorage.removeItem('ranbidge_deleted_folders');
-                      } catch (e) {}
+                      persistFolders(customFolders, [...UNNECESSARY_DEMO_FOLDERS]);
                       setIsSettingsPopoverOpen(false);
-                      if (showToast) showToast('↺ Restored all deleted folders to Admin Drive!');
+                      if (showToast) showToast('↺ Reset custom folders and synchronized with Firebase!');
                     }}
                     style={{
                       display: 'flex',
@@ -1857,8 +2015,8 @@ export default function AdminPortalModal({
               <div className="stat-icon primary">
                 <Users />
               </div>
-              <div style={{ flex: 1 }}>
-                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
                   <span>{stats.total}</span>
                   <span style={{ fontSize: '0.72rem', background: '#dbeafe', color: '#1d4ed8', padding: '0.15rem 0.55rem', borderRadius: '50px', fontWeight: 800 }}>
                     Check Users &rarr;
@@ -1877,8 +2035,8 @@ export default function AdminPortalModal({
               <div className="stat-icon success">
                 <Building />
               </div>
-              <div style={{ flex: 1 }}>
-                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
                   <span>{stats.collegesCount}</span>
                   <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#15803d', padding: '0.15rem 0.55rem', borderRadius: '50px', fontWeight: 800 }}>
                     View Added Colleges &rarr;
@@ -1896,8 +2054,8 @@ export default function AdminPortalModal({
               <div className="stat-icon primary" style={{ background: '#f0fdf4', color: '#16a34a' }}>
                 <FileSpreadsheet />
               </div>
-              <div style={{ flex: 1 }}>
-                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
                   <span>{masterDump.length}</span>
                   <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#15803d', padding: '0.15rem 0.55rem', borderRadius: '50px', fontWeight: 800 }}>
                     Dump Data &rarr;
@@ -1916,30 +2074,65 @@ export default function AdminPortalModal({
                 <div className="stat-label">Dumped Certificates</div>
               </div>
             </div>
+
+            {/* Clickable Events, Workshops & Internships Stat Card */}
+            <div 
+              className="admin-stat-card clickable"
+              onClick={() => setAdminTab('programs')}
+              title="Click to view & add Events, Workshops, Internships, etc."
+            >
+              <div className="stat-icon primary" style={{ background: '#eef2ff', color: '#4f46e5' }}>
+                <Calendar />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="stat-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  <span>{stats.programsCount}</span>
+                  <span style={{ fontSize: '0.72rem', background: '#e0e7ff', color: '#4338ca', padding: '0.15rem 0.55rem', borderRadius: '50px', fontWeight: 800 }}>
+                    Manage Events &rarr;
+                  </span>
+                </div>
+                <div className="stat-label">Events, Workshops & Internships</div>
+              </div>
+            </div>
           </div>
 
           {/* Admin Section Tabs */}
-          <div className="nav-tabs" style={{ marginBottom: '1.25rem', width: 'fit-content' }}>
+          <div className="nav-tabs admin-section-tabs">
             <button
               className={`nav-tab ${adminTab === 'registrations' ? 'active' : ''}`}
               onClick={() => setAdminTab('registrations')}
+              title="Registration Records"
             >
               <Users size={16} />
-              <span>Registration Records ({records.length})</span>
+              <span className="tab-label-full">Registration Records ({records.length})</span>
+              <span className="tab-label-short">Registrations ({records.length})</span>
             </button>
             <button
               className={`nav-tab ${adminTab === 'master-dump' ? 'active' : ''}`}
               onClick={() => setAdminTab('master-dump')}
+              title="Dump Roll Numbers & Names"
             >
               <FileSpreadsheet size={16} />
-              <span>Dump Roll Numbers & Names ({masterDump.length})</span>
+              <span className="tab-label-full">Dump Roll Numbers & Names ({masterDump.length})</span>
+              <span className="tab-label-short">Master Dump ({masterDump.length})</span>
             </button>
             <button
               className={`nav-tab ${adminTab === 'certificates' ? 'active' : ''}`}
               onClick={() => setAdminTab('certificates')}
+              title="Dump Certificates"
             >
               <FileUp size={16} />
-              <span>Dump Certificates ({certificates.length})</span>
+              <span className="tab-label-full">Dump Certificates ({certificates.length})</span>
+              <span className="tab-label-short">Certificates ({certificates.length})</span>
+            </button>
+            <button
+              className={`nav-tab ${adminTab === 'programs' ? 'active' : ''}`}
+              onClick={() => setAdminTab('programs')}
+              title="Events, Workshops, Internships & Bootcamps"
+            >
+              <Calendar size={16} />
+              <span className="tab-label-full">Events, Workshops & Internships ({stats.programsCount})</span>
+              <span className="tab-label-short">Programs & Events ({stats.programsCount})</span>
             </button>
           </div>
 
@@ -1957,7 +2150,7 @@ export default function AdminPortalModal({
                     </p>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div className="dashboard-folders-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                     {selectedFolderIds.length > 0 && (
                       <button
                         type="button"
@@ -2098,6 +2291,14 @@ export default function AdminPortalModal({
                   />
                 </div>
                 <div className="admin-actions">
+                  <button 
+                    className="btn-primary btn-sm" 
+                    onClick={() => setAdminTab('programs')}
+                    title="Add and manage Events, Workshops, Internships, etc."
+                    style={{ background: '#4f46e5', borderColor: '#4338ca', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <Plus size={15} /> Add Event / Workshop
+                  </button>
                   <button 
                     className="btn-secondary btn-sm" 
                     onClick={() => setIsFormSettingsModalOpen(true)}
@@ -2441,6 +2642,11 @@ export default function AdminPortalModal({
                               <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
                                 {rec.workshopName}
                               </span>
+                              {(rec.workshopDuration || rec.duration) && (
+                                <div style={{ fontSize: '0.72rem', color: '#1d4ed8', background: '#eff6ff', padding: '0.1rem 0.45rem', borderRadius: '4px', marginTop: '0.15rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}>
+                                  ⏱️ {rec.workshopDuration || rec.duration}
+                                </div>
+                              )}
                             </td>
                             <td>{rec.workshopDate || 'N/A'}</td>
                             <td>
@@ -2459,6 +2665,22 @@ export default function AdminPortalModal({
                                   }}
                                 >
                                   <CheckCircle2 size={16} />
+                                </span>
+                              ) : rec.verificationStatus === 'rejected' ? (
+                                <span
+                                  title="Registration Rejected"
+                                  style={{
+                                    background: '#fee2e2',
+                                    color: '#b91c1c',
+                                    padding: '0.35rem',
+                                    borderRadius: '50%',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #fca5a5'
+                                  }}
+                                >
+                                  <XCircle size={16} />
                                 </span>
                               ) : (
                                 <span
@@ -2498,6 +2720,31 @@ export default function AdminPortalModal({
                                 >
                                   <UserCheck size={16} color="#ffffff" />
                                 </button>
+                                {rec.verificationStatus !== 'rejected' && (
+                                  <button
+                                    type="button"
+                                    className="btn-action-reject btn-sm"
+                                    onClick={() => {
+                                      if (window.confirm(`Are you sure you want to REJECT the registration for ${rec.fullName}?`)) {
+                                        onRejectRecord && onRejectRecord(rec.id);
+                                      }
+                                    }}
+                                    title="Reject Registration"
+                                    style={{
+                                      padding: '0.45rem 0.6rem',
+                                      borderRadius: '6px',
+                                      background: '#fee2e2',
+                                      border: '1px solid #fca5a5',
+                                      color: '#dc2626',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <UserX size={16} color="#dc2626" />
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   className="btn-action-del"
@@ -2543,11 +2790,26 @@ export default function AdminPortalModal({
               onLoadSampleMasterData={onLoadSampleMasterData}
               showToast={showToast}
             />
-          ) : (
+          ) : adminTab === 'certificates' ? (
             <CertificateDumpUpload
               certificates={certificates}
               onSaveCertificates={onSaveCertificates}
               onDeleteCertificate={onDeleteCertificate}
+              showToast={showToast}
+            />
+          ) : (
+            <ProgramsEventsManager
+              portalSettings={portalSettings}
+              onSavePortalSettings={onSavePortalSettings}
+              records={records}
+              certificates={certificates}
+              onVerifyRecord={onVerifyRecord}
+              onSaveCertificates={onSaveCertificates}
+              onSelectProgramFilter={(programTitle) => {
+                setAdminTab('registrations');
+                setColumnFilters(prev => ({ ...prev, workshopName: [programTitle] }));
+                setSearchQuery(programTitle);
+              }}
               showToast={showToast}
             />
           )}
@@ -2641,7 +2903,7 @@ export default function AdminPortalModal({
             {/* USERS DIRECTORY GRID CARDS VIEW */}
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {filteredUsersDirectory.length > 0 ? (
-                <div style={{
+                <div className="users-directory-grid" style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))',
                   gap: '1.25rem',
@@ -3292,8 +3554,8 @@ export default function AdminPortalModal({
       {openedFolderPage && (
         <div className="admin-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1280, padding: 0 }} onClick={() => setOpenedFolderPage(null)}>
           <div
-            className="admin-modal-container"
-            style={{ position: 'relative', maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, padding: '1.75rem 2rem', overflowY: 'auto' }}
+            className="admin-modal-container admin-fullscreen-portal"
+            style={{ position: 'relative', maxWidth: '100vw', width: '100vw', height: '100vh', maxHeight: '100vh', borderRadius: 0, overflowY: 'auto' }}
             onClick={(e) => e.stopPropagation()}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -3618,6 +3880,22 @@ export default function AdminPortalModal({
                                 >
                                   <CheckCircle2 size={15} />
                                 </span>
+                              ) : rec.verificationStatus === 'rejected' ? (
+                                <span
+                                  title="Registration Rejected"
+                                  style={{
+                                    background: '#fee2e2',
+                                    color: '#b91c1c',
+                                    padding: '0.35rem',
+                                    borderRadius: '50%',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #fca5a5'
+                                  }}
+                                >
+                                  <XCircle size={15} />
+                                </span>
                               ) : (
                                 <span
                                   title="Pending Verification"
@@ -3656,6 +3934,31 @@ export default function AdminPortalModal({
                                 >
                                   <UserCheck size={15} color="#ffffff" />
                                 </button>
+                                {rec.verificationStatus !== 'rejected' && (
+                                  <button
+                                    type="button"
+                                    className="btn-action-reject btn-sm"
+                                    onClick={() => {
+                                      if (window.confirm(`Are you sure you want to REJECT the registration for ${rec.fullName}?`)) {
+                                        onRejectRecord && onRejectRecord(rec.id);
+                                      }
+                                    }}
+                                    title="Reject Registration"
+                                    style={{
+                                      padding: '0.35rem 0.5rem',
+                                      borderRadius: '6px',
+                                      background: '#fee2e2',
+                                      border: '1px solid #fca5a5',
+                                      color: '#dc2626',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <UserX size={15} color="#dc2626" />
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   className="btn-action-del"
@@ -4025,20 +4328,46 @@ export default function AdminPortalModal({
             </div>
 
             {/* Search Input */}
-            <div className="admin-search-wrapper" style={{ marginBottom: '1.25rem' }}>
-              <Search className="search-icon" />
+            <div
+              className="admin-search-wrapper"
+              style={{
+                position: 'relative',
+                width: '100%',
+                flex: '0 0 auto',
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '1.25rem'
+              }}
+            >
+              <Search
+                size={18}
+                className="search-icon"
+                style={{
+                  position: 'absolute',
+                  left: '1.1rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-light)',
+                  pointerEvents: 'none',
+                  zIndex: 2
+                }}
+              />
               <input
                 type="text"
                 className="admin-search-input"
                 placeholder="Search added college by name..."
                 value={collegeSearchInput}
                 onChange={(e) => setCollegeSearchInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  paddingLeft: '2.85rem'
+                }}
                 autoFocus
               />
             </div>
 
             {/* Colleges Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem', maxHeight: '480px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+            <div className="colleges-directory-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem', maxHeight: '480px', overflowY: 'auto', paddingRight: '0.25rem' }}>
               {collegeBreakdown
                 .filter(col => !collegeSearchInput || col.name.toLowerCase().includes(collegeSearchInput.toLowerCase().trim()))
                 .map((col, idx) => {
@@ -4164,6 +4493,21 @@ export default function AdminPortalModal({
                   }}>
                     <ShieldCheck size={16} /> VERIFIED & RELEASED
                   </span>
+                ) : viewingStudentDetail.verificationStatus === 'rejected' ? (
+                  <span style={{
+                    background: '#fee2e2',
+                    color: '#b91c1c',
+                    padding: '0.4rem 1rem',
+                    borderRadius: '50px',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    border: '1px solid #fca5a5'
+                  }}>
+                    <XCircle size={16} /> REGISTRATION REJECTED
+                  </span>
                 ) : (
                   <span style={{
                     background: '#fef3c7',
@@ -4184,7 +4528,7 @@ export default function AdminPortalModal({
             </div>
 
             {/* Registration Details Grid */}
-            <div style={{
+            <div className="admin-student-details-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
               gap: '1rem',
@@ -4242,6 +4586,15 @@ export default function AdminPortalModal({
 
               <div>
                 <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Duration
+                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1d4ed8', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                  ⏱️ {safeVal(viewingStudentDetail.workshopDuration || viewingStudentDetail.duration, 'N/A')}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
                   Event Date
                 </span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -4265,6 +4618,17 @@ export default function AdminPortalModal({
                   </span>
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#166534' }}>
                     {formatTimestamp(viewingStudentDetail.verifiedAt)}
+                  </span>
+                </div>
+              )}
+
+              {viewingStudentDetail.rejectedAt && (
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                    Rejected Timestamp
+                  </span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#be123c' }}>
+                    {formatTimestamp(viewingStudentDetail.rejectedAt)}
                   </span>
                 </div>
               )}
@@ -4298,10 +4662,39 @@ export default function AdminPortalModal({
                     if (onVerifyRecord) onVerifyRecord(viewingStudentDetail.id);
                     setViewingStudentDetail(prev => prev ? { ...prev, verificationStatus: 'verified', verifiedAt: new Date().toLocaleString() } : null);
                   }}
-                  style={{ padding: '0.65rem 1.5rem', background: '#16a34a', borderColor: '#15803d' }}
+                  style={{ padding: '0.65rem 1.5rem', background: '#16a34a', borderColor: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', borderRadius: 'var(--radius-md)', fontWeight: 700, cursor: 'pointer' }}
                 >
                   <UserCheck size={18} />
                   <span>Accept Registration & Verify</span>
+                </button>
+              )}
+
+              {viewingStudentDetail.verificationStatus !== 'rejected' && (
+                <button
+                  type="button"
+                  className="btn-action-reject"
+                  onClick={() => {
+                    if (window.confirm(`Are you sure you want to REJECT the registration for ${viewingStudentDetail.fullName}?`)) {
+                      if (onRejectRecord) onRejectRecord(viewingStudentDetail.id);
+                      setViewingStudentDetail(prev => prev ? { ...prev, verificationStatus: 'rejected', rejectedAt: new Date().toLocaleString() } : null);
+                    }
+                  }}
+                  style={{
+                    padding: '0.65rem 1.35rem',
+                    background: '#e11d48',
+                    borderColor: '#be123c',
+                    color: '#ffffff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    borderRadius: 'var(--radius-md)',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(225, 29, 72, 0.25)'
+                  }}
+                >
+                  <XCircle size={18} />
+                  <span>Reject Registration</span>
                 </button>
               )}
 
@@ -4314,7 +4707,7 @@ export default function AdminPortalModal({
                     setViewingStudentDetail(null);
                   }
                 }}
-                style={{ padding: '0.65rem 1.25rem', background: '#dc2626', borderColor: '#b91c1c', color: '#ffffff', borderRadius: 'var(--radius-md)' }}
+                style={{ padding: '0.65rem 1.25rem', background: '#dc2626', borderColor: '#b91c1c', color: '#ffffff', borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, cursor: 'pointer' }}
               >
                 <Trash size={16} />
                 <span>Delete Record</span>
