@@ -241,7 +241,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
     <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
       {/* Search Header & Multi-field Form */}
-      <div className="form-container-wrapper" style={{ padding: '2.5rem 2rem' }}>
+      <div className="form-container-wrapper portal-filter-card">
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div style={{
             display: 'inline-flex',
@@ -266,7 +266,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
         </div>
 
         {/* Multi-Field Form */}
-        <form onSubmit={handleSearch} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.15rem' }}>
+        <form onSubmit={handleSearch} className="portal-filter-form">
           
           {/* 1. Full Name */}
           <div>
@@ -368,7 +368,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
           </div>
 
           {/* Action Buttons */}
-          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+          <div className="portal-form-actions">
             <button
               type="button"
               className="btn-secondary"
@@ -439,19 +439,8 @@ export default function StudentCertificatePortal({ records = [], certificates = 
                 </div>
 
                 {/* Student Profile Info Grid */}
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1.5px solid var(--border-color)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.15rem 1.5rem',
-                  marginBottom: '1.75rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '1rem'
-                }}>
-                  <div>
+                <div className="portal-profile-ribbon">
+                  <div className="portal-profile-main">
                     <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
                       {record.college}
                     </div>
@@ -459,7 +448,7 @@ export default function StudentCertificatePortal({ records = [], certificates = 
                       Department: <strong>{record.department || 'N/A'}</strong> &bull; Roll: <strong style={{ color: 'var(--primary)' }}>{record.rollNumber}</strong>
                     </p>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div className="portal-profile-meta">
                     <span style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 800, fontFamily: 'monospace' }}>
                       ID: {record.id}
                     </span>

@@ -76,20 +76,20 @@ export default function PublicSearch({ records = [], certificates = [], latestRe
         </div>
 
         <form onSubmit={handleSearch}>
-          <div className="admin-search-wrapper" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
+          <div className="admin-search-wrapper public-search-bar">
+            <div style={{ position: 'relative', flex: 1, minWidth: 0, width: '100%' }}>
               <Search className="search-icon" style={{ left: '1.2rem' }} />
               <input
                 type="text"
                 className="form-input"
                 style={{ paddingLeft: '2.8rem' }}
-                placeholder="e.g. Aarav Sharma or 21CS1084 or REG-102938"
+                placeholder="e.g. Aarav Sharma, 21CS1084, or REG-102938"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <button type="submit" className="btn-primary" style={{ padding: '0.8rem 1.75rem' }}>
-              <span>Search</span>
+            <button type="submit" className="btn-primary public-search-btn" style={{ padding: '0.8rem 1.75rem' }}>
+              <span>Search Record</span>
             </button>
           </div>
         </form>

@@ -56,23 +56,29 @@ export default function Navbar({
             <button
               className={`nav-tab ${activeTab === 'register' ? 'active' : ''}`}
               onClick={() => setActiveTab('register')}
+              title="Registration Form"
             >
-              <FormInput size={17} />
-              <span>Registration</span>
+              <FormInput size={17} className="nav-tab-icon" />
+              <span className="tab-label-full">Registration</span>
+              <span className="tab-label-short">Register</span>
             </button>
             <button
               className={`nav-tab ${activeTab === 'check-certs' ? 'active' : ''}`}
               onClick={() => setActiveTab('check-certs')}
+              title="Check Certificates"
             >
-              <Award size={17} />
-              <span>Check Certificates</span>
+              <Award size={17} className="nav-tab-icon" />
+              <span className="tab-label-full">Check Certificates</span>
+              <span className="tab-label-short">Certificates</span>
             </button>
             <button
               className={`nav-tab ${activeTab === 'verify' ? 'active' : ''}`}
               onClick={() => setActiveTab('verify')}
+              title="Verify Record"
             >
-              <Search size={17} />
-              <span>Verify Record</span>
+              <Search size={17} className="nav-tab-icon" />
+              <span className="tab-label-full">Verify Record</span>
+              <span className="tab-label-short">Verify</span>
             </button>
           </div>
         </div>

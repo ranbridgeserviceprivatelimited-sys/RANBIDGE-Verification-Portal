@@ -111,7 +111,7 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
             const isImage = cert.fileType === 'image' || /\.(jpg|jpeg|png|gif|webp)$/i.test(cert.fileName || '');
 
             return (
-              <div key={cert.id || index} style={{
+              <div key={cert.id || index} className="cert-box-item" style={{
                 background: 'var(--bg-primary)',
                 border: '1px solid var(--border-color)',
                 borderRadius: 'var(--radius-md)',
@@ -124,12 +124,12 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
                 boxShadow: 'var(--neu-raised-sm)',
                 transition: 'var(--transition)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '240px' }}>
+                <div className="cert-box-info" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '200px' }}>
                   <div 
                     onClick={() => setSelectedPreview(cert)}
                     style={{
-                      width: '60px',
-                      height: '60px',
+                      width: '56px',
+                      height: '56px',
                       borderRadius: 'var(--radius-md)',
                       background: '#f8fafc',
                       border: '1px solid var(--border-color)',
@@ -149,8 +149,8 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
                     )}
                   </div>
 
-                  <div>
-                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-all' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)', wordBreak: 'break-word' }}>
                       {cert.fileName || `Certificate_${cert.rollNumber}`}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.25rem' }}>
@@ -171,7 +171,7 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="cert-box-actions" style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
                     className="btn-secondary"
                     onClick={() => setSelectedPreview(cert)}
@@ -188,7 +188,7 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
                     title="Download Certificate File"
                   >
                     <Download size={15} />
-                    <span>Download File</span>
+                    <span>Download</span>
                   </button>
                 </div>
               </div>

@@ -127,7 +127,7 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
           
           {/* Live Admin Master Data Verification Callout */}
           {matchedMasterEntry ? (
-            <div style={{
+            <div className="registration-match-banner" style={{
               gridColumn: '1 / -1',
               background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
               border: '1.5px solid #86efac',
@@ -136,17 +136,18 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
               gap: '0.75rem',
               marginBottom: '0.5rem',
               animation: 'fadeIn 0.3s ease'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: '1 1 200px' }}>
                 <ShieldCheck size={22} color="#16a34a" style={{ flexShrink: 0 }} />
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: '0.92rem', color: '#14532d', fontWeight: 800 }}>
                     Verified with Admin Master Portal Data!
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#166534', marginTop: '0.1rem' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#166534', marginTop: '0.1rem', wordBreak: 'break-word' }}>
                     Matched Roll Number: <strong>{matchedMasterEntry.rollNumber}</strong> ({matchedMasterEntry.fullName})
                   </div>
                 </div>
@@ -164,7 +165,7 @@ export default function RegistrationForm({ onSubmitSuccess, masterDump = [], rec
                   }));
                   if (showToast) showToast('Auto-filled student details from Admin Master Data!');
                 }}
-                style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', background: '#ffffff', color: '#15803d', borderColor: '#86efac', fontWeight: 700 }}
+                style={{ fontSize: '0.78rem', padding: '0.45rem 0.85rem', background: '#ffffff', color: '#15803d', borderColor: '#86efac', fontWeight: 700, flexShrink: 0 }}
               >
                 Auto-Fill Details
               </button>

@@ -1,10 +1,12 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Download, Printer, Award, Linkedin, Share2 } from 'lucide-react';
+import { Download, Printer, Award, Linkedin, Share2, Copy, Check, ExternalLink, X, CheckCircle2, FileCheck } from 'lucide-react';
 
 export default function CertificateGenerator({ record, showActions = true, onDownloadComplete, showToast }) {
   const canvasRef = useRef(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [isLinkedInModalOpen, setIsLinkedInModalOpen] = useState(false);
+  const [copiedLinkedInText, setCopiedLinkedInText] = useState(false);
 
   const safeText = (val, defaultVal = '') => {
     if (val === null || val === undefined) return defaultVal;
@@ -271,23 +273,77 @@ export default function CertificateGenerator({ record, showActions = true, onDow
     printWindow.document.close();
   };
 
+  // Generate inspiring workshop experience content for LinkedIn
+  const getLinkedInPostText = () => {
+    const portalUrl = window.location.origin || window.location.href;
+    return `🎓 Thrilled to announce that I have successfully participated in and completed the intensive technical workshop on "${workshopTitle}" conducted by RANBIDGE Solutions! 🚀
+
+💡 Experience & Key Insights Gained:
+• Acquired practical, hands-on knowledge in translating early-stage ideas into Minimum Viable Products (MVPs).
+• Learned real-world engineering problem solving, agile execution, and entrepreneurship methodologies.
+• Mentored by industry professionals on startup workflows, tech validation, and modern product frameworks.
+
+📜 Verified Certificate Credential:
+• Participant Name: ${recipientName}
+• Institution: ${collegeName}
+• Department / Branch: ${record?.department || 'Engineering & Technology'}
+• Roll Number: ${rollNumber}
+• Certificate ID: ${record?.id || rollNumber}
+• Verification Portal: ${portalUrl}
+
+A sincere thank you to the expert instructors and mentors at RANBIDGE Solutions for delivering such an enriching, career-defining learning experience! Excited to continue building and innovating! ✨
+
+#RANBIDGE #RANBRIDGESolutions #StudentAchievement #WorkshopExperience #Entrepreneurship #IdeaToMVP #Engineering #Upskilling #ContinuousLearning #Innovation #TechSkills`;
+  };
+
   // Direct Share to LinkedIn Action
   const handleShareLinkedIn = () => {
-    const postText = `🎓 Thrilled to announce that I have successfully completed the specialized technical workshop on "${workshopTitle}" organized by RANBIDGE Solutions! 🚀\n\n📜 Certificate ID: ${record?.id || rollNumber}\n🏫 Institution: ${collegeName}\n💻 Department: ${record?.department || 'Engineering & Technology'}\n\nGrateful for the valuable hands-on learning experience and skill enrichment!\n\n#RANBIDGE #Certification #ContinuousLearning #Upskilling #Engineering #Technology #Achievement`;
+    const postText = getLinkedInPostText();
 
+    // 1. Copy formatted workshop experience text to clipboard
     try {
       navigator.clipboard.writeText(postText);
+      setCopiedLinkedInText(true);
+      setTimeout(() => setCopiedLinkedInText(false), 3000);
     } catch (err) {
       console.warn('Clipboard write error:', err);
     }
 
-    const currentUrl = window.location.href;
-    const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentUrl)}`;
-    window.open(linkedinUrl, '_blank', 'width=650,height=700,scrollbars=yes');
+    // 2. Automatically trigger Certificate Image download so it's ready in Downloads to attach
+    handleDownload();
+
+    // 3. Try copying image directly to clipboard if browser supports ClipboardItem
+    const canvas = canvasRef.current;
+    if (canvas && navigator.clipboard && window.ClipboardItem) {
+      try {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]).catch(() => {});
+          }
+        });
+      } catch (e) {}
+    }
+
+    // 4. Open LinkedIn Feed Post Composer with text pre-filled
+    const linkedinComposerUrl = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(postText)}`;
+    window.open(linkedinComposerUrl, '_blank', 'width=750,height=800,scrollbars=yes');
+
+    // 5. Open LinkedIn Share Modal with helper instructions
+    setIsLinkedInModalOpen(true);
 
     if (showToast) {
-      showToast('📋 Copied LinkedIn post text to clipboard! Opening LinkedIn...');
+      showToast('🚀 LinkedIn post opened with pre-filled content! Certificate PNG downloaded to attach.');
     }
+  };
+
+  const handleCopyPostTextOnly = () => {
+    const postText = getLinkedInPostText();
+    navigator.clipboard.writeText(postText);
+    setCopiedLinkedInText(true);
+    if (showToast) showToast('📋 Copied LinkedIn post text to clipboard!');
+    setTimeout(() => setCopiedLinkedInText(false), 2500);
   };
 
   return (
@@ -308,70 +364,128 @@ export default function CertificateGenerator({ record, showActions = true, onDow
           style={{ 
             width: '100%', 
             height: 'auto', 
-            display: 'block',
+            display: 'block', 
             borderRadius: 'var(--radius-lg)'
           }} 
         />
       </div>
 
-      {/* Action Buttons (Icon-Only) */}
+      {/* Action Buttons */}
       {showActions && (
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', alignItems: 'center', marginTop: '0.5rem' }}>
+        <div className="cert-action-buttons">
           <button
-            className="btn-primary"
+            className="btn-primary cert-action-btn"
             onClick={handleDownload}
             disabled={isGenerating}
-            style={{ 
-              padding: '0.75rem', 
-              borderRadius: 'var(--radius-md)', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              width: '44px',
-              height: '44px'
-            }}
             title={isGenerating ? "Generating PNG..." : "Download Official Certificate (PNG)"}
           >
-            <Download size={20} />
+            <Download size={18} />
+            <span>Download Certificate</span>
           </button>
           
           <button
-            className="btn-secondary"
+            className="btn-secondary cert-action-btn"
             onClick={handlePrint}
-            style={{ 
-              padding: '0.75rem', 
-              borderRadius: 'var(--radius-md)', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              width: '44px',
-              height: '44px'
-            }}
             title="Print Certificate"
           >
-            <Printer size={20} />
+            <Printer size={18} />
+            <span>Print</span>
           </button>
 
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-linkedin cert-action-btn"
             onClick={handleShareLinkedIn}
-            style={{
-              padding: '0.75rem',
-              borderRadius: 'var(--radius-md)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '44px',
-              height: '44px',
-              background: '#0a66c2',
-              borderColor: '#0a66c2',
-              color: '#ffffff'
-            }}
-            title="Share on LinkedIn"
+            title="Share on LinkedIn with Certificate & Workshop Experience"
           >
-            <Linkedin size={20} />
+            <Linkedin size={18} />
+            <span>Share on LinkedIn</span>
           </button>
+        </div>
+      )}
+
+      {/* LinkedIn Share Helper Modal */}
+      {isLinkedInModalOpen && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1400 }} onClick={() => setIsLinkedInModalOpen(false)}>
+          <div className="pin-modal-container" style={{ maxWidth: '640px', width: '92%', padding: '1.75rem', textAlign: 'left' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn-icon-close pin-close-pos" onClick={() => setIsLinkedInModalOpen(false)} title="Close">
+              <X size={20} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1rem' }}>
+              <div style={{ background: '#0a66c2', color: '#ffffff', width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Linkedin size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Share on LinkedIn
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Post your certificate and hands-on workshop experience with your network.
+                </p>
+              </div>
+            </div>
+
+            {/* Steps Guide */}
+            <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 'var(--radius-md)', padding: '0.9rem 1.15rem', marginBottom: '1.25rem', fontSize: '0.84rem', color: '#0369a1' }}>
+              <div style={{ fontWeight: 800, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <CheckCircle2 size={16} color="#0284c7" /> Easy 3-Step Sharing:
+              </div>
+              <ol style={{ paddingLeft: '1.25rem', margin: 0, lineHeight: 1.6 }}>
+                <li>We opened LinkedIn with your experience post text pre-filled.</li>
+                <li>Your Certificate PNG is downloaded. Click the <strong>Media/Photo icon</strong> on LinkedIn and select your certificate.</li>
+                <li>Click <strong>Post</strong> to share your accomplishment!</li>
+              </ol>
+            </div>
+
+            {/* Post Content Preview Box */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                  Workshop Experience Content:
+                </label>
+                <button
+                  type="button"
+                  onClick={handleCopyPostTextOnly}
+                  className="btn-secondary"
+                  style={{ fontSize: '0.78rem', padding: '0.3rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  {copiedLinkedInText ? <Check size={14} color="#16a34a" /> : <Copy size={14} />}
+                  <span>{copiedLinkedInText ? 'Copied!' : 'Copy Text'}</span>
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={getLinkedInPostText()}
+                rows={7}
+                className="form-input"
+                style={{ fontSize: '0.82rem', fontFamily: 'inherit', resize: 'none', background: 'var(--bg-secondary)', lineHeight: 1.5 }}
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleDownload}
+                style={{ padding: '0.7rem 1.2rem', fontSize: '0.88rem' }}
+              >
+                <Download size={16} /> Re-Download PNG
+              </button>
+              <button
+                type="button"
+                className="btn-linkedin"
+                onClick={() => {
+                  const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(getLinkedInPostText())}`;
+                  window.open(url, '_blank', 'width=750,height=800,scrollbars=yes');
+                }}
+                style={{ padding: '0.7rem 1.4rem', fontSize: '0.88rem' }}
+              >
+                <ExternalLink size={16} /> Open LinkedIn Composer
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
