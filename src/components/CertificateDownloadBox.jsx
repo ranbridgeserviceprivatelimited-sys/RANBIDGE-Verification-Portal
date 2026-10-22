@@ -17,7 +17,8 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
     const queryName = (fullName || '').toLowerCase().trim();
     const queryWorkshop = (workshopName || '').toLowerCase().trim();
 
-    if (!queryRoll && !queryName && !queryWorkshop) return false;
+    // Require at least one identity query (Roll number or Participant Name)
+    if (!queryRoll && !queryName) return false;
 
     // 1. Match by Roll Number
     const isRollMatch = queryRoll && (
@@ -31,13 +32,16 @@ export default function CertificateDownloadBox({ certificates, rollNumber, fullN
       (certFile && certFile.includes(queryName))
     );
 
-    // 3. Match by Workshop / Event Name
-    const isWorkshopMatch = queryWorkshop && (
-      (certWorkshop && (certWorkshop.includes(queryWorkshop) || queryWorkshop.includes(certWorkshop))) ||
-      (certFile && certFile.includes(queryWorkshop))
-    );
+    // Identity match is strictly required so newly registered users don't see everyone's certificates
+    if (!isRollMatch && !isNameMatch) return false;
 
-    return isRollMatch || isNameMatch || isWorkshopMatch;
+    // If workshop filter is also specified, ensure it matches
+    if (queryWorkshop && certWorkshop) {
+      const wsMatch = certWorkshop.includes(queryWorkshop) || queryWorkshop.includes(certWorkshop);
+      if (!wsMatch) return false;
+    }
+
+    return true;
   });
 
   const displayCerts = matchedCerts;

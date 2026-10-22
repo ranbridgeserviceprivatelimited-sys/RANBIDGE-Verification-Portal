@@ -211,6 +211,9 @@ export default function StudentCertificatePortal({ records = [], certificates = 
     if (!hasSearched || !activeFilters) return [];
     const { fullName, rollNumber, college, department, workshopName } = activeFilters;
 
+    // Student identity (Name or Roll Number) is required to view certificate record
+    if (!fullName && !rollNumber) return [];
+
     return allSearchableRecords.filter(r => {
       const matchName = !fullName || (r.fullName && r.fullName.toLowerCase().includes(fullName));
       const matchRoll = !rollNumber || (r.rollNumber && r.rollNumber.toLowerCase().includes(rollNumber)) || (r.id && r.id.toLowerCase().includes(rollNumber));
@@ -232,8 +235,8 @@ export default function StudentCertificatePortal({ records = [], certificates = 
     const dept = filterForm.department.trim().toLowerCase();
     const wk = filterForm.workshopName.trim().toLowerCase();
 
-    if (!fName && !rNum && !col && !dept && !wk) {
-      if (showToast) showToast('⚠️ Please fill in at least one detail to search your certificate!');
+    if (!fName && !rNum) {
+      if (showToast) showToast('⚠️ Please enter your Participant Name or Roll Number to search your certificate!');
       return;
     }
 
@@ -280,6 +283,9 @@ export default function StudentCertificatePortal({ records = [], certificates = 
     const dept = filterForm.department.trim().toLowerCase();
     const wk = filterForm.workshopName.trim().toLowerCase();
 
+    // Student identity (Name or Roll Number) is strictly required to display certificates
+    if (!fName && !rNum) return [];
+
     return certificates.filter(c => {
       const cName = (c.studentName || c.fullName || '').toLowerCase();
       const cRoll = (c.rollNumber || '').toLowerCase();
@@ -287,13 +293,13 @@ export default function StudentCertificatePortal({ records = [], certificates = 
       const cDept = (c.department || '').toLowerCase();
       const cWk = (c.workshopName || c.eventName || '').toLowerCase();
 
-      const matchName = !fName || cName.includes(fName);
-      const matchRoll = !rNum || cRoll.includes(rNum);
+      const matchName = !fName || cName.includes(fName) || fName.includes(cName);
+      const matchRoll = !rNum || cRoll.includes(rNum) || rNum.includes(cRoll);
       const matchCol = !col || cCol.includes(col);
       const matchDept = !dept || cDept.includes(dept);
       const matchWk = !wk || cWk.includes(wk);
 
-      return matchName && matchRoll && matchCol && matchDept && matchWk;
+      return (matchName && matchRoll) && matchCol && matchDept && matchWk;
     });
   }, [certificates, filterForm, hasSearched]);
 

@@ -755,7 +755,7 @@ export default function AdminPortalModal({
     onClose
   ]);
 
-  // Dynamic Dashboard Folders List (Custom Admin Folders + Colleges + Workshops - Filtered by Deleted Folders)
+  // Dynamic Dashboard Folders List (Custom Admin Folders + Colleges + Workshops/Events + Dumped Certificate Folders)
   const allFoldersList = useMemo(() => {
     const deletedSet = new Set([
       ...deletedFolderNames.map(n => n.toLowerCase()),
@@ -785,6 +785,14 @@ export default function AdminPortalModal({
       }
     });
 
+    // Also include certificates workshop/event/folder names so dumped certificate folders automatically appear!
+    (certificates || []).forEach(c => {
+      const ws = (c.workshopName || c.eventName || c.folderName || '').trim();
+      if (ws && !deletedSet.has(ws.toLowerCase())) {
+        workshopMap[ws] = (workshopMap[ws] || 0) + 1;
+      }
+    });
+
     const workshopFolders = Object.keys(workshopMap).map(wsName => ({
       id: `ws-${wsName}`,
       name: wsName,
@@ -795,12 +803,20 @@ export default function AdminPortalModal({
     // Only display root level custom folders in Root Dashboard grid
     const userFolders = customFolders
       .filter(f => !f.parentId && !deletedSet.has(f.name.toLowerCase()) && !deletedSet.has(f.id.toLowerCase()))
-      .map(f => ({
-        id: f.id,
-        name: f.name,
-        type: 'custom',
-        count: records.filter(r => r.college === f.name || r.workshopName === f.name).length || 0
-      }));
+      .map(f => {
+        const rCount = records.filter(r => r.college === f.name || r.workshopName === f.name).length || 0;
+        const cCount = (certificates || []).filter(c => 
+          (c.folderName && c.folderName.toLowerCase() === f.name.toLowerCase()) || 
+          (c.workshopName && c.workshopName.toLowerCase() === f.name.toLowerCase()) || 
+          (c.folderId && c.folderId === f.id)
+        ).length || 0;
+        return {
+          id: f.id,
+          name: f.name,
+          type: 'custom',
+          count: rCount + cCount
+        };
+      });
 
     const combined = [...userFolders];
     collegeFolders.forEach(cf => {
@@ -815,7 +831,7 @@ export default function AdminPortalModal({
     });
 
     return combined.filter(item => !deletedSet.has(item.name.toLowerCase()) && !deletedSet.has(item.id.toLowerCase()));
-  }, [records, customFolders, deletedFolderNames]);
+  }, [records, certificates, customFolders, deletedFolderNames]);
 
   const handleOpenAddStudentModal = (targetFolder = null) => {
     const parentFolder = targetFolder || openedFolderPage || (contextMenu.folder ? contextMenu.folder : null);
@@ -1234,6 +1250,7 @@ export default function AdminPortalModal({
       (c.folderName && c.folderName.toLowerCase().trim() === key) ||
       (c.college && c.college.toLowerCase().trim() === key) ||
       (c.workshopName && c.workshopName.toLowerCase().trim() === key) ||
+      (c.eventName && c.eventName.toLowerCase().trim() === key) ||
       (c.studentName && c.studentName.toLowerCase().includes(key)) ||
       (c.fileName && c.fileName.toLowerCase().includes(key)) ||
       (c.rollNumber && c.rollNumber.toLowerCase().includes(key))
@@ -2822,6 +2839,11 @@ export default function AdminPortalModal({
               certificates={certificates}
               onSaveCertificates={onSaveCertificates}
               onDeleteCertificate={onDeleteCertificate}
+              portalSettings={portalSettings}
+              customFolders={customFolders}
+              onSaveFolders={onSaveFolders}
+              persistFolders={persistFolders}
+              deletedFolderNames={deletedFolderNames}
               showToast={showToast}
             />
           ) : (
