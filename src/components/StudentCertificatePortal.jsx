@@ -25,7 +25,7 @@ import CertificateDownloadBox from './CertificateDownloadBox';
 import logoImg from '../../assets/logo.jpg';
 
 export default function StudentCertificatePortal({ records = [], certificates = [], masterDump = [], portalSettings = {}, initialSearchQuery = '', onNewRegistration, showToast }) {
-  const isRollOrIdQuery = (str) => Boolean(str && (str.startsWith('REG-') || str.startsWith('CERT-') || /^[A-Za-z0-9]+$/i.test(str.trim()) && /\d/.test(str)));
+  const isRollOrIdQuery = (str) => Boolean(str && (str.startsWith('REG-') || str.startsWith('CERT-') || str.startsWith('MVP-') || /^[A-Za-z0-9]+$/i.test(str.trim()) && /\d/.test(str)));
 
   // Form Details State: Name, College, Department/Branch, Roll Number, Event/Workshop/Internship
   const [filterForm, setFilterForm] = useState({

@@ -83,7 +83,7 @@ export default function PublicSearch({ records = [], certificates = [], latestRe
                 type="text"
                 className="form-input"
                 style={{ paddingLeft: '2.8rem' }}
-                placeholder="e.g. Aarav Sharma, 21CS1084, or REG-102938"
+                placeholder="e.g. Participant Name, Roll Number, or MVP-01"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />

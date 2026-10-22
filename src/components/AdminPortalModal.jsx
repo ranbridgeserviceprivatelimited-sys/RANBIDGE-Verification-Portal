@@ -2292,34 +2292,54 @@ export default function AdminPortalModal({
                 </div>
                 <div className="admin-actions">
                   <button 
-                    className="btn-primary btn-sm" 
+                    className="btn-primary btn-sm admin-action-btn" 
                     onClick={() => setAdminTab('programs')}
                     title="Add and manage Events, Workshops, Internships, etc."
-                    style={{ background: '#4f46e5', borderColor: '#4338ca', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    aria-label="Add Event / Workshop"
+                    style={{ background: '#4f46e5', borderColor: '#4338ca', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                   >
-                    <Plus size={15} /> Add Event / Workshop
+                    <Plus size={16} />
+                    <span className="admin-btn-text">Add Event / Workshop</span>
                   </button>
                   <button 
-                    className="btn-secondary btn-sm" 
+                    className="btn-secondary btn-sm admin-action-btn" 
                     onClick={() => setIsFormSettingsModalOpen(true)}
                     title="Manage dropdown options for College Name, Workshop Title, and Department"
-                    style={{ background: '#7c3aed', borderColor: '#6d28d9', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    aria-label="Form Dropdowns"
+                    style={{ background: '#7c3aed', borderColor: '#6d28d9', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                   >
-                    <Settings size={15} /> Form Dropdowns
+                    <Settings size={16} />
+                    <span className="admin-btn-text">Form Dropdowns</span>
                   </button>
                   <button 
-                    className="btn-primary btn-sm" 
+                    className="btn-primary btn-sm admin-action-btn" 
                     onClick={() => setIsUsersDirectoryOpen(true)}
-                    title="Check all registered users data stored in Firebase"
-                    style={{ background: '#0284c7', borderColor: '#0284c7' }}
+                    title={`Check all registered users data stored in Firebase (${records.length})`}
+                    aria-label={`Check Users Data (${records.length})`}
+                    style={{ background: '#0284c7', borderColor: '#0284c7', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                   >
-                    <UserCheck size={15} /> Check Users Data ({records.length})
+                    <UserCheck size={16} />
+                    <span className="admin-btn-text">Check Users Data ({records.length})</span>
                   </button>
-                  <button className="btn-primary btn-sm" onClick={handleExportCsv} title="Download CSV report">
-                    <FileSpreadsheet size={15} /> Export CSV
+                  <button 
+                    className="btn-primary btn-sm admin-action-btn" 
+                    onClick={handleExportCsv} 
+                    title="Download CSV report"
+                    aria-label="Export CSV"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                  >
+                    <FileSpreadsheet size={16} />
+                    <span className="admin-btn-text">Export CSV</span>
                   </button>
-                  <button className="btn-danger btn-sm" onClick={onClearAllRecords} title="Clear all registrations">
-                    <Trash2 size={15} /> Clear All
+                  <button 
+                    className="btn-danger btn-sm admin-action-btn" 
+                    onClick={onClearAllRecords} 
+                    title="Clear all registrations"
+                    aria-label="Clear All"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                  >
+                    <Trash2 size={16} />
+                    <span className="admin-btn-text">Clear All</span>
                   </button>
                 </div>
               </div>
