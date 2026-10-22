@@ -4,52 +4,45 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // 1. Student & Candidate Registrations
-    // Allows public registration submission, admin verification, and verification search queries
+    // Allows public registrations, verification status checks, admin approvals & edits
     match /registrations/{document=**} {
       allow read, write: if true;
-      allow create, update, delete: if true;
     }
 
-    // 2. Verified Certificates & Uploaded Files
-    // Allows public verification, certificate downloads, and admin uploads/batch generation
+    // 2. Certificates & Public Verification Records
+    // Allows public certificate verification, QR code searches, downloads & admin bulk issuance
     match /certificates/{document=**} {
       allow read, write: if true;
-      allow create, update, delete: if true;
     }
 
-    // 3. Master Roll Dump (Official Student Records)
-    // Allows matching student details during registration & bulk admin import/delete
+    // 3. Master Student Roll Dump
+    // Allows candidate detail cross-verification during registration & bulk admin imports
     match /master_dump/{document=**} {
       allow read, write: if true;
-      allow create, update, delete: if true;
     }
 
     // 4. Portal Settings & Configurations
-    // Stores dashboard folders, custom directories, form field visibility, and portal customization
+    // Stores folder categories, dashboard config, custom directories, and UI settings
     match /portal_settings/{document=**} {
       allow read, write: if true;
-      allow create, update, delete: if true;
     }
 
-    // 5. Programs, Events & Workshops Management
-    // Allows managing training programs, event certificates, and attendee rosters
+    // 5. Programs, Events & Workshops
+    // Manages internship programs, event attendees, and workshop certificate records
     match /programs_events/{document=**} {
       allow read, write: if true;
-      allow create, update, delete: if true;
     }
 
     match /events/{document=**} {
       allow read, write: if true;
-      allow create, update, delete: if true;
     }
 
     match /programs/{document=**} {
       allow read, write: if true;
-      allow create, update, delete: if true;
     }
 
-    // 6. Universal Catch-All Fallback Rule
-    // Guarantees zero permission-denied errors across any current or future collections & subcollections
+    // 6. Universal Catch-All Fallback
+    // Guarantees zero "permission-denied" errors across any present or future collections
     match /{document=**} {
       allow read, write: if true;
     }
