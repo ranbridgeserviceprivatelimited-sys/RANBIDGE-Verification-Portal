@@ -624,6 +624,10 @@ export default function AdminPortalModal({
       return;
     }
 
+    if (!window.confirm(`Are you sure you want to delete ${selectedStudentIds.length} selected record(s)? This will remove them from the system.`)) {
+      return;
+    }
+
     let count = 0;
     for (const id of selectedStudentIds) {
       if (onDeleteRecord) {
@@ -634,7 +638,7 @@ export default function AdminPortalModal({
 
     setSelectedStudentIds([]);
     if (showToast) {
-      showToast(`❌ Rejected & Removed ${count} selected student record(s)!`);
+      showToast(`❌ Removed ${count} selected student record(s)!`);
     }
   };
 
@@ -2218,12 +2222,13 @@ export default function AdminPortalModal({
 
                     <button
                       type="button"
-                      className="btn-primary btn-sm"
+                      className="btn-primary add-folder-icon-btn"
                       onClick={() => setIsAddFolderModalOpen(true)}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.45rem 0.75rem' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', minWidth: '36px', padding: 0, borderRadius: 'var(--radius-md)', flexShrink: 0 }}
                       title="Create New Folder"
+                      aria-label="Create New Folder"
                     >
-                      <FolderPlus size={16} />
+                      <FolderPlus size={18} />
                     </button>
                   </div>
                 </div>
@@ -2332,14 +2337,16 @@ export default function AdminPortalModal({
                     <span className="admin-btn-text">Export CSV</span>
                   </button>
                   <button 
-                    className="btn-danger btn-sm admin-action-btn" 
-                    onClick={onClearAllRecords} 
-                    title="Clear all registrations"
-                    aria-label="Clear All"
+                    className={`btn-danger btn-sm admin-action-btn ${selectedStudentIds.length === 0 ? 'mobile-hide-delete' : 'mobile-show-delete'}`} 
+                    onClick={selectedStudentIds.length > 0 ? handleBulkReject : onClearAllRecords} 
+                    title={selectedStudentIds.length > 0 ? `Delete selected ${selectedStudentIds.length} registration(s)` : "Clear all registrations"}
+                    aria-label={selectedStudentIds.length > 0 ? `Delete Selected (${selectedStudentIds.length})` : "Clear All"}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                   >
                     <Trash2 size={16} />
-                    <span className="admin-btn-text">Clear All</span>
+                    <span className="admin-btn-text">
+                      {selectedStudentIds.length > 0 ? `Delete Selected (${selectedStudentIds.length})` : 'Clear All'}
+                    </span>
                   </button>
                 </div>
               </div>
