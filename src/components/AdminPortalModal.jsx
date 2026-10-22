@@ -2145,7 +2145,7 @@ export default function AdminPortalModal({
               {/* File Explorer Dashboard Folders Drive */}
               <div className="dashboard-folders-section">
                 <div className="dashboard-folders-header">
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <h4 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.45rem', margin: 0 }}>
                       <Folder color="#eab308" size={18} /> Dashboard Folders ({allFoldersList.length})
                     </h4>
